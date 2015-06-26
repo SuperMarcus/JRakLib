@@ -17,10 +17,9 @@ public class ProtocolSocket extends DatagramSocket {
 
     public boolean writePacket(Packet packet, SocketAddress target){
         try{
-            synchronized (this){
-                DatagramPacket dPacket = new DatagramPacket(packet.toRaw(), packet.toRaw().length, target);
-                this.send(dPacket);
-            }
+            byte[] data = packet.toRaw();
+            DatagramPacket dPacket = new DatagramPacket(data, data.length, target);
+            this.send(dPacket);
             return true;
         }catch (Exception ignore){}
         return false;
@@ -28,15 +27,17 @@ public class ProtocolSocket extends DatagramSocket {
 
     public ReceivedPacket readPacket(){
         try{
-            synchronized (this){
-                DatagramPacket dPacket = new DatagramPacket(new byte[Packet.MAX_SIZE], Packet.MAX_SIZE);
-                this.receive(dPacket);
-                byte[] buf = dPacket.getData();
-                if(buf[0] > 0){
-                    return new ReceivedPacket(dPacket);
-                }
+            DatagramPacket dPacket = new DatagramPacket(new byte[Packet.MAX_SIZE], Packet.MAX_SIZE);
+            this.receive(dPacket);
+            byte[] buf = dPacket.getData();
+            if(buf[0] > 0){
+                return new ReceivedPacket(dPacket);
             }
         }catch (Exception ignore){}
         return null;
+    }
+
+    public boolean isAlive(){
+        return !this.isClosed() && this.isBound();
     }
 }

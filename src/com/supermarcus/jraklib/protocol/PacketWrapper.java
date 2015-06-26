@@ -3,9 +3,9 @@ package com.supermarcus.jraklib.protocol;
 import com.supermarcus.jraklib.network.ReceivedPacket;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
-public class PacketWrapper extends HashMap<Byte, Class<? extends Packet>> {
+public class PacketWrapper extends ConcurrentHashMap<Byte, Class<? extends Packet>> {
 
     public void registerPacket(Packet raw){
         this.registerPacket(raw.getNetworkID(), raw.getClass());

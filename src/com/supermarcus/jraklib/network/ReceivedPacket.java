@@ -9,7 +9,10 @@ public class ReceivedPacket {
     private InetSocketAddress fromAddress;
 
     public ReceivedPacket(DatagramPacket dPacket){
-        this(dPacket.getData(), new InetSocketAddress(dPacket.getAddress(), dPacket.getPort()));
+        this(null, new InetSocketAddress(dPacket.getAddress(), dPacket.getPort()));
+        byte[] data = new byte[dPacket.getLength()];
+        System.arraycopy(dPacket.getData(), 0, data, 0, dPacket.getLength());
+        this.rawPacket = data;
     }
     
     public ReceivedPacket(byte[] buffer, InetSocketAddress address){

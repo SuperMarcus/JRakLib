@@ -1,5 +1,7 @@
 package com.supermarcus.jraklib.protocol;
 
+import com.supermarcus.jraklib.protocol.raklib.PacketInfo;
+
 import java.nio.ByteBuffer;
 
 abstract public class Packet {
@@ -22,6 +24,10 @@ abstract public class Packet {
         return networkID;
     }
 
+    public PacketInfo getPacketIdentifier(){
+        return PacketInfo.getById((byte) this.getNetworkID());
+    }
+
     protected ByteBuffer getBuffer(){
         return buffer;
     }
@@ -32,6 +38,9 @@ abstract public class Packet {
     }
 
     public byte[] toRaw(){
-        return getBuffer().array();
+        int length = getBuffer().position() + 1;
+        byte[] raw = new byte[length];
+        System.arraycopy(getBuffer().array(), 0, raw, 0, length);
+        return raw;
     }
 }
