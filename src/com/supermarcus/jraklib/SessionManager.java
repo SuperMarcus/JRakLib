@@ -3,13 +3,9 @@ package com.supermarcus.jraklib;
 import com.supermarcus.jraklib.lang.exceptions.InterfaceOutOfPoolSizeException;
 import com.supermarcus.jraklib.lang.message.RakLibMessage;
 import com.supermarcus.jraklib.lang.message.major.MainThreadExceptionMessage;
-import com.supermarcus.jraklib.lang.message.major.MessagePoolOverflowMessage;
 import com.supermarcus.jraklib.lang.message.major.UncaughtMainThreadExceptionMessage;
 import com.supermarcus.jraklib.network.RakLibInterface;
-import com.supermarcus.jraklib.protocol.PacketWrapper;
 import com.supermarcus.jraklib.protocol.RawPacket;
-import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PING;
-import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PONG;
 
 import java.net.InetSocketAddress;
 import java.net.SocketException;
@@ -25,8 +21,6 @@ public class SessionManager extends Thread {
     public static final int MAX_SERVER_INTERFACES = 25;
 
     private ReentrantLock threadLock = new ReentrantLock(true);
-
-    private PacketWrapper wrapper = new PacketWrapper();
 
     private boolean isShutdown = false;
 
@@ -49,7 +43,6 @@ public class SessionManager extends Thread {
     volatile private String serverName = "MCPE;Minecraft Server;27;0.11.0;0;60";
 
     public SessionManager(){
-        this.registerDefaultPackets();
         this.setName("RakLib - Main Thread");
         this.setUncaughtExceptionHandler(new UncaughtExceptionHandler() {
             @Override
@@ -65,9 +58,19 @@ public class SessionManager extends Thread {
             try{
                 this.processMessages();
                 this.processRawPacket();
-                this.setServerName("MCPE;JRakLib Server " + System.currentTimeMillis() + ";27;0.11.0;0;60");
             }catch (Throwable t){
                 this.queueMessage(new MainThreadExceptionMessage(this, t));
+            }
+        }
+        synchronized (this){
+            for(RakLibInterface i : this.getInterfaces()){
+                i.shutdown();
+                try{
+                    i.join(1000 * 5);
+                }catch (InterruptedException ignore){}
+                if(!i.isTerminated()){
+                    i.interrupt();
+                }
             }
         }
     }
@@ -182,12 +185,11 @@ public class SessionManager extends Thread {
         this.rawHandler = handler;
     }
 
-    public PacketWrapper getWrapper(){
-        return this.wrapper;
-    }
-
     public void shutdown(){
         this.isShutdown = true;
+        try {
+            this.join();
+        } catch (InterruptedException ignore) {}
     }
 
     public boolean isShutdown(){
@@ -201,11 +203,6 @@ public class SessionManager extends Thread {
             }
         }
         return -1;
-    }
-
-    private void registerDefaultPackets(){
-        this.getWrapper().registerPacket(new UNCONNECTED_PING());
-        this.getWrapper().registerPacket(new UNCONNECTED_PONG());
     }
 
     public class SessionMap extends ConcurrentHashMap<InetSocketAddress, Session> {

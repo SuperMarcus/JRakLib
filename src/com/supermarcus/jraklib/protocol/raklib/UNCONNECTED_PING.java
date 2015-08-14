@@ -1,6 +1,5 @@
 package com.supermarcus.jraklib.protocol.raklib;
 
-import com.supermarcus.jraklib.network.RakLibInterface;
 import com.supermarcus.jraklib.protocol.Packet;
 
 public class UNCONNECTED_PING extends Packet {
@@ -8,7 +7,7 @@ public class UNCONNECTED_PING extends Packet {
     private long pingID = 0L;
 
     public UNCONNECTED_PING() {
-        super(PacketInfo.UNCONNECTED_PING.getNetworkId());
+        super(PacketInfo.UNCONNECTED_PING);
     }
 
     public long getPingID(){
@@ -22,7 +21,7 @@ public class UNCONNECTED_PING extends Packet {
     @Override
     public void encode() {
         this.getBuffer().putLong(this.getPingID());
-        this.getBuffer().put(RakLibInterface.MAGIC);
+        this.getUtils().putMagic();
     }
 
     @Override

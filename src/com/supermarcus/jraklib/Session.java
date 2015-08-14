@@ -1,6 +1,7 @@
 package com.supermarcus.jraklib;
 
 import com.supermarcus.jraklib.network.RakLibInterface;
+import com.supermarcus.jraklib.network.SendPriority;
 import com.supermarcus.jraklib.protocol.Packet;
 import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PING;
 import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PONG;
@@ -33,15 +34,7 @@ public class Session {
     }
 
     public void handlePacket(Packet packet){
-        switch (packet.getPacketIdentifier()){
-            case UNCONNECTED_PING:
-                UNCONNECTED_PONG pong = new UNCONNECTED_PONG();
-                pong.setServerName(this.manager.getServerName());
-                pong.setServerID(this.manager.getServerId());
-                pong.setPingID(((UNCONNECTED_PING) packet).getPingID());
-                this.sendPacket(pong);
-                break;
-        }
+
     }
 
     public void update(long millis){
@@ -65,6 +58,10 @@ public class Session {
     public void sendPacket(Packet pk){
         pk.encode();
         this.getOwnedInterface().getSocket().writePacket(pk, this.getAddress());
-        System.out.println("send pk");
+    }
+
+    public void sendPacket(Packet pk, SendPriority priority){
+        pk.encode();
+        this.getOwnedInterface().getSocket().writePacket(pk, this.getAddress(), priority);
     }
 }

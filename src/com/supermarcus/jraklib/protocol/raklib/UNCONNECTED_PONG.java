@@ -1,9 +1,6 @@
 package com.supermarcus.jraklib.protocol.raklib;
 
-import com.supermarcus.jraklib.network.RakLibInterface;
 import com.supermarcus.jraklib.protocol.Packet;
-
-import java.io.ByteArrayOutputStream;
 
 public class UNCONNECTED_PONG extends Packet {
     private long pingID = 0L;
@@ -13,7 +10,7 @@ public class UNCONNECTED_PONG extends Packet {
     private String serverName = "";
 
     public UNCONNECTED_PONG() {
-        super(PacketInfo.UNCONNECTED_PONG.getNetworkId());
+        super(PacketInfo.UNCONNECTED_PONG);
     }
 
     public long getPingID(){
@@ -44,28 +41,15 @@ public class UNCONNECTED_PONG extends Packet {
     public void encode() {
         this.getBuffer().putLong(this.getPingID());
         this.getBuffer().putLong(this.getServerID());
-        this.getBuffer().put(RakLibInterface.MAGIC);
-
-        byte[] nameBytes = this.getServerName().getBytes(RakLibInterface.STRING_DEFAULT_CHARSET);
-        this.getBuffer().putShort((short) nameBytes.length);
-        this.getBuffer().put(nameBytes);
+        this.getUtils().putMagic();
+        this.getUtils().putString(this.getServerName());
     }
 
     @Override
     public void decode() {
         this.setPingID(this.getBuffer().getLong());
         this.setServerID(this.getBuffer().getLong());
-
-        this.getBuffer().position(this.getBuffer().position() + 16);//Skip magic
-
-        int length = this.getBuffer().get();
-
-        ByteArrayOutputStream bufStream = new ByteArrayOutputStream(length);
-        while (length > 0){
-            --length;
-            bufStream.write(this.getBuffer().get());
-        }
-
-        this.setServerName(new String(bufStream.toByteArray(), RakLibInterface.STRING_DEFAULT_CHARSET));
+        this.getUtils().getMagic();
+        this.setServerName(this.getUtils().getString());
     }
 }

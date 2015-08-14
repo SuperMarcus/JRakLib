@@ -9,23 +9,25 @@ abstract public class Packet {
 
     private ByteBuffer buffer = ByteBuffer.allocate(Packet.MAX_SIZE);
 
-    private int networkID = 0;
+    private BinaryUtils utils = new BinaryUtils(this.buffer);
 
-    public Packet(int id){
-        this.networkID = id;
-        this.getBuffer().put((byte) this.getNetworkID());
+    private PacketInfo identifier = null;
+
+    public Packet(PacketInfo identifier){
+        this.identifier = identifier;
+        this.getBuffer().put(this.getNetworkID());
     }
 
     abstract public void encode();
 
     abstract public void decode();
 
-    public int getNetworkID(){
-        return networkID;
+    public byte getNetworkID(){
+        return this.getPacketIdentifier().getNetworkId();
     }
 
     public PacketInfo getPacketIdentifier(){
-        return PacketInfo.getById((byte) this.getNetworkID());
+        return this.identifier;
     }
 
     protected ByteBuffer getBuffer(){
@@ -34,7 +36,7 @@ abstract public class Packet {
 
     public void initBuffer(ByteBuffer buffer){
         this.buffer = buffer;
-        this.networkID = this.getBuffer().get();
+        this.identifier = PacketInfo.getById(this.getBuffer().get());
     }
 
     public byte[] toRaw(){
@@ -42,5 +44,9 @@ abstract public class Packet {
         byte[] raw = new byte[length];
         System.arraycopy(getBuffer().array(), 0, raw, 0, length);
         return raw;
+    }
+
+    public BinaryUtils getUtils() {
+        return utils;
     }
 }

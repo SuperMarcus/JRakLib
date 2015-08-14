@@ -4,16 +4,18 @@ import com.supermarcus.jraklib.SessionManager;
 import com.supermarcus.jraklib.lang.message.server.*;
 import com.supermarcus.jraklib.protocol.Packet;
 import com.supermarcus.jraklib.protocol.RawPacket;
+import com.supermarcus.jraklib.protocol.raklib.PacketInfo;
+import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PING;
+import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PONG;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
-import java.nio.charset.Charset;
 
+/**
+ * Thread interface
+ */
 public class RakLibInterface extends Thread{
-    public static final byte[] MAGIC = new byte[]{0, -1, -1, 0, -2, -2, -2, -2, -3, -3, -3, -3, 18, 52, 86, 120};
-
-    public static final Charset STRING_DEFAULT_CHARSET = Charset.forName("UTF-8");
-
     public static final long NORMAL_TICK = 50;
 
     public static final int MAX_PACKET_PER_TICK = 500;
@@ -27,10 +29,6 @@ public class RakLibInterface extends Thread{
     private long startTime = 0L;
 
     private int serverId;
-
-    private int tickCounterPointer = 0;
-
-    volatile private long[] averageTickMillis = new long[]{0, 0, 0, 0, 0, 0};
 
     public RakLibInterface(InetSocketAddress serverAddress, SessionManager manager, int serverId) throws SocketException {
         this.socket = new ProtocolSocket(serverAddress);
@@ -46,25 +44,20 @@ public class RakLibInterface extends Thread{
         }
         this.getSessionManager().queueMessage(new InterfaceStartMessage(this.getStartTimeMillis(), this));
         try{
-            while(this.isRunning()){
+            while(this.running){
                 long tickStart = System.currentTimeMillis();
+
+                if(tickStart < this.startTime){//what???
+                    synchronized (this){
+                        this.startTime = tickStart;
+                    }
+                }
 
                 this.onTick();
 
-                long current = System.currentTimeMillis();
-                long sleepMillis = (tickStart + RakLibInterface.NORMAL_TICK - current);
-                long takes = current - tickStart;
-                if(sleepMillis > RakLibInterface.NORMAL_TICK){
-                    this.getSessionManager().queueMessage(new TimeWarningMessage(this));
-                    sleepMillis = RakLibInterface.NORMAL_TICK;
-                }else if(sleepMillis <= 0){
-                    this.getSessionManager().queueMessage(new ServerOverloadedMessage(takes, this));
-                    sleepMillis = 1;
-                }
-
-                this.averageTickMillis[(this.tickCounterPointer = ((++this.tickCounterPointer) % this.averageTickMillis.length))] = takes;
-
-                Thread.sleep(sleepMillis);
+                try{
+                    Thread.sleep(tickStart + RakLibInterface.NORMAL_TICK - System.currentTimeMillis());
+                }catch (Exception ignore){}
             }
         }catch (Throwable t){
             this.getSessionManager().queueMessage(new InterfaceInterruptMessage(t, this));
@@ -76,15 +69,22 @@ public class RakLibInterface extends Thread{
     public boolean receivePacket(){
         ReceivedPacket packet = this.getSocket().readPacket();
         if(packet != null){
-            Packet wrap = this.getSessionManager().getWrapper().wrapPacket(packet);
-            if(wrap != null){
+            byte[] buffer = packet.getRawData();
+            PacketInfo identifier = PacketInfo.getById(buffer[0]);
+            if(identifier != null){
                 try{
-                    wrap.decode();
-                    System.out.println("Received new " + wrap.getClass().getSimpleName());
-                    for(byte b : packet.getRawData()){
-                        System.out.print(b + " ");
+                    Packet wrappedPacket = identifier.wrap(buffer);
+                    wrappedPacket.decode();
+                    if(identifier == PacketInfo.UNCONNECTED_PING){//No need to pass to a session
+                        UNCONNECTED_PONG pong = new UNCONNECTED_PONG();
+                        pong.setServerName(getSessionManager().getServerName());
+                        pong.setServerID(getSessionManager().getServerId());
+                        pong.setPingID(((UNCONNECTED_PING) wrappedPacket).getPingID());
+                        pong.encode();
+                        this.getSocket().writePacket(pong, packet.getSendAddress());
+                    }else{
+                        this.getSessionManager().getSessionMap().getSession(packet.getSendAddress(), this).handlePacket(wrappedPacket);
                     }
-                    this.getSessionManager().getSessionMap().getSession(packet.getSendAddress(), this).handlePacket(wrap);
                 }catch (Exception ignore){}
             }else{
                 this.getSessionManager().queueRaw(new RawPacket(packet.getRawData(), packet.getSendAddress()));
@@ -94,17 +94,16 @@ public class RakLibInterface extends Thread{
         return false;
     }
 
-    public double getLoad(){
-        long millisSum = 0;
-        for(long t : this.averageTickMillis){
-            millisSum += t;
-        }
-        return Math.max(((millisSum / this.averageTickMillis.length) / RakLibInterface.NORMAL_TICK), 1D);
-    }
-
+    /**
+     * Main tick here
+     */
     public void onTick(){
         int max = RakLibInterface.MAX_PACKET_PER_TICK;
         while((max > 0) && this.receivePacket())--max;
+
+        try {
+            this.getSocket().flush();
+        } catch (IOException ignore) {}
     }
 
     public boolean isRunning(){
