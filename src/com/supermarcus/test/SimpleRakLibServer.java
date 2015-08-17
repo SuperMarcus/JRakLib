@@ -1,5 +1,7 @@
-package com.supermarcus.jraklib;
+package com.supermarcus.test;
 
+import com.supermarcus.jraklib.MessageHandler;
+import com.supermarcus.jraklib.RakLibServerInstance;
 import com.supermarcus.jraklib.lang.exceptions.InterfaceOutOfPoolSizeException;
 import com.supermarcus.jraklib.lang.message.RakLibMessage;
 
@@ -20,9 +22,7 @@ public class SimpleRakLibServer extends RakLibServerInstance {
                 }
             });
             this.getSessionManager().addInterface(new InetSocketAddress("0.0.0.0", 19132));
-        } catch (SocketException e) {
-            e.printStackTrace();
-        } catch (InterfaceOutOfPoolSizeException e) {
+        } catch (SocketException | InterfaceOutOfPoolSizeException e) {
             e.printStackTrace();
         }
     }
