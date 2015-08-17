@@ -9,8 +9,12 @@ public class UNCONNECTED_PONG extends Packet {
 
     private String serverName = "";
 
+    protected UNCONNECTED_PONG(PacketInfo identifier){
+        super(identifier);
+    }
+
     public UNCONNECTED_PONG() {
-        super(PacketInfo.UNCONNECTED_PONG);
+        this(PacketInfo.UNCONNECTED_PONG);
     }
 
     public long getPingID(){

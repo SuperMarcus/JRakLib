@@ -1,10 +1,11 @@
 package com.supermarcus.jraklib.protocol;
 
+import com.supermarcus.jraklib.lang.BinaryConvertible;
 import com.supermarcus.jraklib.protocol.raklib.PacketInfo;
 
 import java.nio.ByteBuffer;
 
-abstract public class Packet {
+abstract public class Packet implements BinaryConvertible {
     public static final int MAX_SIZE = 1024 * 1024 * 8;
 
     private ByteBuffer buffer = ByteBuffer.allocate(Packet.MAX_SIZE);
@@ -36,10 +37,12 @@ abstract public class Packet {
 
     public void initBuffer(ByteBuffer buffer){
         this.buffer = buffer;
-        this.identifier = PacketInfo.getById(this.getBuffer().get());
+        if(!(this.getPacketIdentifier() == PacketInfo.getById(this.getBuffer().get()))){
+            throw new IllegalArgumentException();
+        }
     }
 
-    public byte[] toRaw(){
+    public byte[] toBinary(){
         int length = getBuffer().position() + 1;
         byte[] raw = new byte[length];
         System.arraycopy(getBuffer().array(), 0, raw, 0, length);

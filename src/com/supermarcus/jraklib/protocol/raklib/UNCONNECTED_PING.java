@@ -6,8 +6,12 @@ public class UNCONNECTED_PING extends Packet {
 
     private long pingID = 0L;
 
+    protected UNCONNECTED_PING(PacketInfo identifier){
+        super(identifier);
+    }
+
     public UNCONNECTED_PING() {
-        super(PacketInfo.UNCONNECTED_PING);
+        this(PacketInfo.UNCONNECTED_PING);
     }
 
     public long getPingID(){

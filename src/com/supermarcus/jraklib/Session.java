@@ -1,10 +1,10 @@
 package com.supermarcus.jraklib;
 
+import com.supermarcus.jraklib.lang.BinaryConvertible;
+import com.supermarcus.jraklib.lang.message.session.SessionCreateMessage;
 import com.supermarcus.jraklib.network.RakLibInterface;
 import com.supermarcus.jraklib.network.SendPriority;
 import com.supermarcus.jraklib.protocol.Packet;
-import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PING;
-import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PONG;
 
 import java.lang.ref.WeakReference;
 import java.net.InetSocketAddress;
@@ -22,7 +22,7 @@ public class Session {
         this.address = address;
         this.manager = manager;
         this.ownedInterface = new WeakReference<RakLibInterface>(ownedInterface);
-        System.out.println("new session");
+        manager.queueMessage(new SessionCreateMessage(this));
     }
 
     public InetSocketAddress getAddress(){
@@ -56,12 +56,15 @@ public class Session {
     }
 
     public void sendPacket(Packet pk){
-        pk.encode();
-        this.getOwnedInterface().getSocket().writePacket(pk, this.getAddress());
+        this.sendPacket(pk, SendPriority.NORMAL);
     }
 
     public void sendPacket(Packet pk, SendPriority priority){
         pk.encode();
+        this.sendPacket((BinaryConvertible) pk, priority);
+    }
+
+    public void sendPacket(BinaryConvertible pk, SendPriority priority){
         this.getOwnedInterface().getSocket().writePacket(pk, this.getAddress(), priority);
     }
 }

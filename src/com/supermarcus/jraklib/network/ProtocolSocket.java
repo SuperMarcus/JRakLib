@@ -1,5 +1,6 @@
 package com.supermarcus.jraklib.network;
 
+import com.supermarcus.jraklib.lang.BinaryConvertible;
 import com.supermarcus.jraklib.protocol.Packet;
 
 import java.io.IOException;
@@ -40,11 +41,11 @@ public class ProtocolSocket extends DatagramSocket {
      * @param target Target address
      * @param priority Send priority
      */
-    public void writePacket(Packet packet, SocketAddress target, SendPriority priority){
+    public void writePacket(BinaryConvertible packet, SocketAddress target, SendPriority priority){
         try{
-            byte[] data = packet.toRaw();
+            byte[] data = packet.toBinary();
             DatagramPacket dPacket = new DatagramPacket(data, data.length, target);
-            this.sendBuffer.offer(new QueuePacket(dPacket, priority));
+            this.writePacket(new QueuePacket(dPacket, priority));
         }catch (Exception ignore){}
     }
 
@@ -54,7 +55,7 @@ public class ProtocolSocket extends DatagramSocket {
      * @param packet Packet to send
      * @param target Target address
      */
-    public void writePacket(Packet packet, SocketAddress target){
+    public void writePacket(BinaryConvertible packet, SocketAddress target){
         this.writePacket(packet, target, SendPriority.NORMAL);
     }
 
