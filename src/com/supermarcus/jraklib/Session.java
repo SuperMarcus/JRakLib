@@ -4,29 +4,23 @@ import com.supermarcus.jraklib.lang.BinaryConvertible;
 import com.supermarcus.jraklib.lang.RecoveryDataPacket;
 import com.supermarcus.jraklib.lang.message.session.SessionCloseMessage;
 import com.supermarcus.jraklib.lang.message.session.SessionCreateMessage;
+import com.supermarcus.jraklib.lang.message.session.SessionOpenMessage;
 import com.supermarcus.jraklib.network.RakLibInterface;
+import com.supermarcus.jraklib.network.ReliableManager;
 import com.supermarcus.jraklib.network.SendPriority;
 import com.supermarcus.jraklib.protocol.Packet;
 import com.supermarcus.jraklib.protocol.raklib.*;
-import com.supermarcus.jraklib.protocol.raklib.acknowledge.ACK;
 import com.supermarcus.jraklib.protocol.raklib.acknowledge.AcknowledgePacket;
-import com.supermarcus.jraklib.protocol.raklib.acknowledge.NACK;
-import com.supermarcus.jraklib.protocol.raklib.data.DATA_PACKET_4;
 import com.supermarcus.jraklib.protocol.raklib.data.DataPacket;
 
 import java.lang.ref.WeakReference;
 import java.net.InetSocketAddress;
-import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.function.BiConsumer;
-import java.util.function.Predicate;
+import java.util.HashSet;
 
 public class Session {
     public static final long UPDATE_TIMEOUT = 10 * 1000;
 
     public static final int MAX_MTU_SIZE = 1464;
-
-    public static int WINDOW_SIZE = 1024 * 2;
 
     private InetSocketAddress address;
 
@@ -38,38 +32,21 @@ public class Session {
 
     private State state = State.UNCONNECTED;
 
-    private DATA_PACKET_4 sendQueue = new DATA_PACKET_4();
+    private HashSet<EncapsulatedPacket> prejoinQueue = new HashSet<>();
 
     private long lastUpdate = System.currentTimeMillis();
 
     private long clientID = 0L;
 
-    private HashSet<Integer> ACKQueue = new HashSet<>();
-
-    private HashSet<Integer> NACKQueue = new HashSet<>();
-
-    private ConcurrentLinkedQueue<DataPacket> packetToSend = new ConcurrentLinkedQueue<>();
-
-    private TreeMap<Integer, RecoveryDataPacket> recoveryQueue = new TreeMap<>();
-
-    private HashMap<Integer, ArrayList<Integer>> needACK = new HashMap<>();
-
-    private ArrayList<Integer> receivedWindow = new ArrayList<>();
-
-    private int windowStart = 0;
-
-    private int windowEnd = Session.WINDOW_SIZE;
-
-    private int sendSeqNumber = 0;
-
-    private int lastSeqNumber = -1;
-
     private int mtuSize = 548; //Min size
+
+    private ReliableManager reliableManager;
 
     public Session(SessionManager manager, InetSocketAddress address, RakLibInterface ownedInterface){
         this.address = address;
         this.manager = manager;
         this.ownedInterface = new WeakReference<>(ownedInterface);
+        this.reliableManager = new ReliableManager(this, manager);
         manager.queueMessage(new SessionCreateMessage(this));
     }
 
@@ -81,8 +58,76 @@ public class Session {
         return this.ownedInterface.get();
     }
 
-    public void handleEncapsulatedPacket(EncapsulatedPacket packet){
+    public void handleSplit(EncapsulatedPacket packet){
 
+    }
+
+    public void handleEncapsulatedPacketRoute(EncapsulatedPacket packet){
+        if(packet.hasSplit()){
+            if(this.state == State.CONNECTED){
+                this.handleSplit(packet);
+            }
+            return;
+        }
+
+        int id = packet.getBuffer()[0] & 0xff;
+        if(id < 0x80){
+            PacketInfo info = PacketInfo.getById(packet.getBuffer()[0]);
+            if(info != null){
+                if(this.state == State.CONNECTING_2){
+                    EncapsulatedPacket reply;
+                    switch (info){
+                        case CLIENT_CONNECT_DataPacket:
+                            CLIENT_CONNECT_DataPacket connectPacket = (CLIENT_CONNECT_DataPacket) info.wrap(packet.getBuffer());
+                            connectPacket.decode();
+
+                            SERVER_HANDSHAKE_DataPacket replyHandshake = new SERVER_HANDSHAKE_DataPacket();
+                            replyHandshake.setAddress(this.getAddress());
+                            replyHandshake.setSendPing(connectPacket.getSendPing() + 1000L);
+                            replyHandshake.encode();
+
+                            reply = new EncapsulatedPacket();
+                            reply.setReliability(EncapsulatedPacket.UNRELIABLE);
+                            reply.setBuffer(replyHandshake);
+
+                            this.getReliableManager().addToQueue(reply, SendPriority.IMMEDIATE);
+                            break;
+                        case CLIENT_HANDSHAKE_DataPacket:
+                            CLIENT_HANDSHAKE_DataPacket handshake = (CLIENT_HANDSHAKE_DataPacket) info.wrap(packet.getBuffer());
+                            handshake.decode();
+
+                            if(handshake.getAddress().getPort() == this.getAddress().getPort() || !this.manager.isPortChecking()){
+                                this.state = State.CONNECTED;
+                                this.manager.queueMessage(new SessionOpenMessage(this));
+                                for(EncapsulatedPacket preEncapsulated : this.prejoinQueue){
+                                    this.manager.queueEncapsulated(this, preEncapsulated);
+                                }
+                                this.prejoinQueue.clear();
+                            }
+                            break;
+                    }
+                }else if (info == PacketInfo.CLIENT_DISCONNECT_DataPacket){
+                    this.close(SessionCloseMessage.Reason.CLIENT_DISCONNECT);
+                }else if (info == PacketInfo.PING_DataPacket){
+                    PING_DataPacket ping = (PING_DataPacket) info.wrap(packet.getBuffer());
+                    ping.decode();
+
+                    PONG_DataPacket pong = new PONG_DataPacket();
+                    pong.setPingID(ping.getPingID());
+                    pong.encode();
+
+                    EncapsulatedPacket reply = new EncapsulatedPacket();
+                    reply.setReliability(EncapsulatedPacket.UNRELIABLE);
+                    reply.setBuffer(pong);
+
+                    this.getReliableManager().addToQueue(reply, SendPriority.NORMAL);
+                }
+            }
+        }else if(this.state == State.CONNECTED){
+            this.manager.queueEncapsulated(this, packet);
+        }else{
+            this.prejoinQueue.add(packet);
+        }
     }
 
     public void handlePacket(Packet packet){
@@ -91,62 +136,14 @@ public class Session {
         if((this.state == State.CONNECTED) || (this.state == State.CONNECTING_2)){
             if(packet instanceof DataPacket){
                 System.out.println("DataPacket: " + packet.getClass().getSimpleName());//TODO
-                if((((DataPacket) packet).getSeqNumber() < this.windowStart) || (((DataPacket) packet).getSeqNumber() > this.windowEnd) || this.receivedWindow.contains(((DataPacket) packet).getSeqNumber())){
-                    return;
-                }
-
-                System.out.println("VDataPacket: " + packet.getClass().getSimpleName());//TODO
-
-                int diff = ((DataPacket) packet).getSeqNumber() - this.lastSeqNumber;
-
-                this.NACKQueue.remove(((DataPacket) packet).getSeqNumber());
-                this.ACKQueue.add(((DataPacket) packet).getSeqNumber());
-                this.receivedWindow.add(((DataPacket) packet).getSeqNumber());
-
-                if(diff != 1){
-                    for(int i = this.lastSeqNumber; i < ((DataPacket) packet).getSeqNumber(); ++i){
-                        this.NACKQueue.add(i);
-                    }
-                }
-
-                if(diff >= 1){
-                    this.lastSeqNumber = ((DataPacket) packet).getSeqNumber();
-                    this.windowStart += diff;
-                    this.windowEnd += diff;
-                }
-
-                for (BinaryConvertible encapsulatedPacket : ((DataPacket) packet).getPackets()){
-                    if(encapsulatedPacket instanceof EncapsulatedPacket){
-                        this.handleEncapsulatedPacket((EncapsulatedPacket) encapsulatedPacket);
-                    }
-                }
+                this.getReliableManager().onDataPacket((DataPacket) packet);
             }else if(packet instanceof AcknowledgePacket){
-                if(packet instanceof ACK){
-                    for(Integer seq : ((ACK) packet).getPackets()){
-                        if(this.recoveryQueue.containsKey(seq)){
-                            for(BinaryConvertible binPk : this.recoveryQueue.get(seq).getPacket().getPackets()){
-                                if((binPk instanceof EncapsulatedPacket) && (((EncapsulatedPacket) binPk).needACK()) && (null != ((EncapsulatedPacket) binPk).getMessageIndex())){
-                                    this.needACK.get(((EncapsulatedPacket) binPk).getIdentifierACK()).remove(((EncapsulatedPacket) binPk).getMessageIndex());
-                                }
-                            }
-                            this.recoveryQueue.remove(seq);
-                        }
-                    }
-                }else if(packet instanceof NACK){
-                    for(Integer seq : ((NACK) packet).getPackets()){
-                        if(this.recoveryQueue.containsKey(seq)){
-                            DataPacket pk = this.recoveryQueue.get(seq).getPacket();
-                            pk.setSeqNumber(this.sendSeqNumber++);
-                            this.packetToSend.add(pk);
-                            this.recoveryQueue.remove(seq);
-                        }
-                    }
-                }
+                this.getReliableManager().onAcknowledgement((AcknowledgePacket) packet);
             }
         }
 
         if(packet.getNetworkID() > 0x00){
-            if(packet instanceof OPEN_CONNECTION_REQUEST_1){
+            if(this.state == State.UNCONNECTED && packet instanceof OPEN_CONNECTION_REQUEST_1){
                 OPEN_CONNECTION_REPLY_1 reply = new OPEN_CONNECTION_REPLY_1();
                 reply.setMtuSize(((OPEN_CONNECTION_REQUEST_1) packet).getMtuSize());
                 System.out.println("Mtu size: " + ((OPEN_CONNECTION_REQUEST_1) packet).getMtuSize());//TODO
@@ -169,16 +166,7 @@ public class Session {
         }
     }
 
-    public void sendQueue(){
-        if(this.sendQueue.countPackets() > 0){
-            this.sendQueue.setSeqNumber(this.sendSeqNumber++);
-            this.sendPacket(this.sendQueue);
-            this.recoveryQueue.put(this.sendQueue.getSeqNumber(), new RecoveryDataPacket(this.sendQueue, System.currentTimeMillis()));
-            this.sendQueue = new DATA_PACKET_4();
-        }
-    }
-
-    public void update(final long millis){
+    public void update(long millis){
         try{
             RakLibInterface rakLibInterface;
 
@@ -197,74 +185,10 @@ public class Session {
 
             this.isActive = false;
 
-            if(!this.ACKQueue.isEmpty()){
-                ACK pk = new ACK();
-                pk.addPackets(this.ACKQueue);
-                this.sendPacket(pk);
-                this.ACKQueue.clear();
-            }
-
-            if(!this.NACKQueue.isEmpty()){
-                NACK pk = new NACK();
-                pk.addPackets(this.NACKQueue);
-                this.sendPacket(pk);
-                this.NACKQueue.clear();
-            }
-
-            if(!this.packetToSend.isEmpty()){
-                int limit = 16;
-                while(((--limit) >= 0) && !this.packetToSend.isEmpty()){
-                    DataPacket pk = this.packetToSend.poll();
-                    RecoveryDataPacket rpk = new RecoveryDataPacket(pk, millis);
-                    this.recoveryQueue.put(rpk.getSeqNumber(), rpk);
-                    this.sendPacket(pk);
-                }
-                if(this.packetToSend.size() > Session.WINDOW_SIZE){
-                    this.packetToSend.clear();
-                }
-            }
-
-            if(!this.needACK.isEmpty()){
-                final HashSet<Integer> needToRemove = new HashSet<>();
-                this.needACK.forEach(new BiConsumer<Integer, ArrayList<Integer>>() {
-                    @Override
-                    public void accept(Integer identifier, ArrayList<Integer> indexes) {
-                        if(indexes.isEmpty()){
-                            needToRemove.add(identifier);
-                        }
-                    }
-                });
-                for(Integer identifier : needToRemove){
-                    this.needACK.remove(identifier);
-                    this.manager.notifyACK(this, identifier);
-                }
-            }
-
-            if(!this.recoveryQueue.isEmpty()){
-                final HashSet<RecoveryDataPacket> needToRecovery = new HashSet<>();
-                this.recoveryQueue.forEach(new BiConsumer<Integer, RecoveryDataPacket>() {
-                    @Override
-                    public void accept(Integer seq, RecoveryDataPacket pk) {
-                        if (pk.getSendTime() < (millis - 8)) {
-                            needToRecovery.add(pk);
-                        }
-                    }
-                });
-                for(RecoveryDataPacket pk : needToRecovery){
-                    this.recoveryQueue.remove(pk.getSeqNumber());
-                    this.packetToSend.add(pk.getPacket());
-                }
-            }
-
-            this.receivedWindow.removeIf(new Predicate<Integer>() {
-                @Override
-                public boolean test(Integer seq) {
-                    return (seq < Session.this.windowStart);
-                }
-            });
-
-            this.sendQueue();
-        }catch (Exception ignore){}//TODO: Add a message or something?
+            this.getReliableManager().onUpdate(millis);
+        }catch (Exception e){
+            e.printStackTrace();//TODO
+        }//TODO: Add a message or something?
     }
 
     public void close(){
@@ -299,6 +223,10 @@ public class Session {
 
     public void setMtuSize(int mtuSize) {
         this.mtuSize = mtuSize;
+    }
+
+    public ReliableManager getReliableManager() {
+        return reliableManager;
     }
 
     public enum State {

@@ -1,11 +1,11 @@
 package com.supermarcus.jraklib;
 
-import com.supermarcus.jraklib.protocol.RawPacket;
+import com.supermarcus.jraklib.lang.RawPacket;
 
 import java.util.concurrent.LinkedBlockingQueue;
 
 abstract public class RakLibServerInstance {
-    private LinkedBlockingQueue<RawPacket> packetQueue = new LinkedBlockingQueue<RawPacket>();
+    private LinkedBlockingQueue<RawPacket> packetQueue = new LinkedBlockingQueue<>();
 
     private SessionManager manager = new SessionManager();
 

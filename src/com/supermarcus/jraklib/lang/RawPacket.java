@@ -1,4 +1,4 @@
-package com.supermarcus.jraklib.protocol;
+package com.supermarcus.jraklib.lang;
 
 import com.supermarcus.jraklib.network.ReceivedPacket;
 

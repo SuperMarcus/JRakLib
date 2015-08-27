@@ -3,7 +3,7 @@ package com.supermarcus.jraklib.network;
 import com.supermarcus.jraklib.SessionManager;
 import com.supermarcus.jraklib.lang.message.server.*;
 import com.supermarcus.jraklib.protocol.Packet;
-import com.supermarcus.jraklib.protocol.RawPacket;
+import com.supermarcus.jraklib.lang.RawPacket;
 import com.supermarcus.jraklib.protocol.raklib.PacketInfo;
 import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PING;
 import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PONG;
@@ -70,7 +70,7 @@ public class RakLibInterface extends Thread{
         ReceivedPacket packet = this.getSocket().readPacket();
         if(packet != null){
             byte[] buffer = packet.getRawData();
-            System.out.println("Handled Packet #" + buffer[0] + " length " + buffer.length);//TODO
+            System.out.println("Handled Packet #" + (buffer[0] & 0xff) + " length " + buffer.length);//TODO
             PacketInfo identifier = PacketInfo.getById(buffer[0]);
             if(identifier != null){
                 try{

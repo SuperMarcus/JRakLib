@@ -1,12 +1,15 @@
 package com.supermarcus.jraklib;
 
 import com.supermarcus.jraklib.lang.ACKNotification;
+import com.supermarcus.jraklib.lang.QueuedEncapsulated;
 import com.supermarcus.jraklib.lang.exceptions.InterfaceOutOfPoolSizeException;
 import com.supermarcus.jraklib.lang.message.RakLibMessage;
 import com.supermarcus.jraklib.lang.message.major.MainThreadExceptionMessage;
 import com.supermarcus.jraklib.lang.message.major.UncaughtMainThreadExceptionMessage;
 import com.supermarcus.jraklib.network.RakLibInterface;
-import com.supermarcus.jraklib.protocol.RawPacket;
+import com.supermarcus.jraklib.lang.RawPacket;
+import com.supermarcus.jraklib.network.SendPriority;
+import com.supermarcus.jraklib.protocol.raklib.EncapsulatedPacket;
 
 import java.net.InetSocketAddress;
 import java.net.SocketException;
@@ -30,6 +33,8 @@ public class SessionManager extends Thread {
     private ConcurrentLinkedQueue<RawPacket> rawPackets = new ConcurrentLinkedQueue<>();
 
     private ConcurrentLinkedQueue<ACKNotification> ackNotifications = new ConcurrentLinkedQueue<>();
+
+    private ConcurrentLinkedQueue<QueuedEncapsulated> encapsulatedQueue = new ConcurrentLinkedQueue<>();
 
     private int runningServer = 0;
 
@@ -63,6 +68,8 @@ public class SessionManager extends Thread {
             try{
                 this.processMessages();
                 this.processRawPacket();
+                this.processACKNotification();
+                this.processEncapsulated();
             }catch (Throwable t){
                 this.queueMessage(new MainThreadExceptionMessage(this, t));
             }
@@ -134,6 +141,18 @@ public class SessionManager extends Thread {
         }
     }
 
+    private void processEncapsulated(){
+        QueuedEncapsulated e = encapsulatedQueue.poll();
+        while(e != null){
+            try{
+                if(this.handler != null){
+                    this.handler.onEncapsulated(e.getSession(), e.getPacket(), e.getFlags());
+                }
+            }catch (Exception ignore){}
+            e = encapsulatedQueue.poll();
+        }
+    }
+
     private void fireMessage(RakLibMessage message){
         for(MessageHandler handler : this.messageHandlers){
             handler.onMessage(message);
@@ -166,6 +185,14 @@ public class SessionManager extends Thread {
 
     public void queueRaw(RawPacket pk){
         this.rawPackets.offer(pk);
+    }
+
+    public void queueEncapsulated(Session session, EncapsulatedPacket packet){
+        this.queueEncapsulated(session, packet, SendPriority.NORMAL.getValue());
+    }
+
+    public void queueEncapsulated(Session session, EncapsulatedPacket packet, int flags){
+        this.encapsulatedQueue.offer(new QueuedEncapsulated(session, packet, flags));
     }
 
     public boolean collectInterfaces(boolean force){

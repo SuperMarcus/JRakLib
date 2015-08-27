@@ -16,7 +16,6 @@ import java.util.concurrent.PriorityBlockingQueue;
  * UDP Socket for Minecraft: Pocket Edition network protocol
  */
 public class ProtocolSocket extends DatagramSocket {
-    public static final int DEFAULT_TIMEOUT = 2000;
 
     private SocketSendReceiveThread thread = new SocketSendReceiveThread();
 
@@ -24,7 +23,6 @@ public class ProtocolSocket extends DatagramSocket {
         super(bindAddress);
         this.setSendBufferSize(Packet.MAX_SIZE);
         this.setReceiveBufferSize(Packet.MAX_SIZE);
-        this.setSoTimeout(ProtocolSocket.DEFAULT_TIMEOUT);
         this.thread.start();
     }
 
@@ -82,7 +80,7 @@ public class ProtocolSocket extends DatagramSocket {
      * @throws IOException
      */
     private void writePacket(DatagramPacket packet) throws IOException {
-        System.out.println("Send Packet #" + packet.getData()[0] + " length " + packet.getData().length);//TODO
+        System.out.println("Send Packet #" + (packet.getData()[0] & 0xff) + " length " + packet.getData().length);//TODO
         this.send(packet);
     }
 
@@ -120,8 +118,7 @@ public class ProtocolSocket extends DatagramSocket {
                 try{
                     DatagramPacket dPacket = new DatagramPacket(new byte[Packet.MAX_SIZE], Packet.MAX_SIZE);
                     ProtocolSocket.this.receive(dPacket);
-                    byte[] buf = dPacket.getData();
-                    if(buf[0] > 0){
+                    if(dPacket.getLength() > 0){
                         this.receiveBuffer.add(new ReceivedPacket(dPacket));
                     }
                 }catch (Exception ignore){}
@@ -133,7 +130,7 @@ public class ProtocolSocket extends DatagramSocket {
         }
 
         public void send(QueuePacket packet){
-            System.out.println("Queued Send Packet #" + packet.getPacket().getData()[0] + " length " + packet.getPacket().getData().length);//TODO
+            System.out.println("Queued Send Packet #" + (packet.getPacket().getData()[0] & 0xff) + " length " + packet.getPacket().getData().length);//TODO
             byte[] data = packet.getPacket().getData();
             System.out.println("Data: " + new BigInteger(data).toString(16));
             this.sendBuffer.offer(packet);

@@ -41,6 +41,27 @@ public class EncapsulatedPacket implements Cloneable, BinaryConvertible {
     private Integer orderIndex = null;
     private Integer orderChannel = null;
 
+    public EncapsulatedPacket(){
+
+    }
+
+    public EncapsulatedPacket(EncapsulatedPacket packet){
+        this.reliability = packet.reliability;
+        this.split = packet.split;
+        this.splitCount = packet.splitCount;
+        this.splitID = packet.splitID;
+        this.splitIndex = packet.splitIndex;
+        this.needACK = packet.needACK;
+
+        this.buffer = new byte[packet.buffer.length];
+        System.arraycopy(packet.buffer, 0, this.buffer, 0, packet.buffer.length);
+
+        this.identifierACK = (packet.identifierACK == null ? null : (Integer)((int) packet.identifierACK));
+        this.messageIndex = (packet.messageIndex == null ? null : (Integer)((int) packet.messageIndex));
+        this.orderIndex = (packet.orderIndex == null ? null : (Integer)((int) packet.orderIndex));
+        this.orderChannel = (packet.orderChannel == null ? null : (Integer)((int) packet.orderChannel));
+    }
+
     public EncapsulatedPacket(ByteBuffer buffer){
         this(buffer, false);
     }
@@ -205,6 +226,10 @@ public class EncapsulatedPacket implements Cloneable, BinaryConvertible {
 
     public void setBuffer(byte[] buffer) {
         this.buffer = buffer;
+    }
+
+    public void setBuffer(BinaryConvertible packet){
+        this.setBuffer(packet.toBinary());
     }
 
     public boolean needACK() {

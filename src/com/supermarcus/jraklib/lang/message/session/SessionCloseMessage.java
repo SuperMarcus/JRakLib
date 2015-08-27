@@ -16,6 +16,7 @@ public class SessionCloseMessage extends SessionMessage {
     }
 
     public enum Reason {
-        TIMEOUT
+        TIMEOUT,
+        CLIENT_DISCONNECT
     }
 }

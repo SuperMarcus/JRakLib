@@ -59,7 +59,7 @@ public abstract class AcknowledgePacket extends Packet {
             records++;
         }
         this.getBuffer().putShort((short) records);
-        this.getBuffer().put(buffer);
+        this.getBuffer().put(buffer.array(), 0, buffer.position());
     }
 
     public void decode(){
