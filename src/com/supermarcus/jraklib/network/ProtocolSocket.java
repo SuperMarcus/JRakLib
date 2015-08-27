@@ -4,25 +4,28 @@ import com.supermarcus.jraklib.lang.BinaryConvertible;
 import com.supermarcus.jraklib.protocol.Packet;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketAddress;
 import java.net.SocketException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 
 /**
  * UDP Socket for Minecraft: Pocket Edition network protocol
  */
 public class ProtocolSocket extends DatagramSocket {
-    public static final int DEFAULT_TIMEOUT = 50;
+    public static final int DEFAULT_TIMEOUT = 2000;
 
-    private PriorityBlockingQueue<QueuePacket> sendBuffer = new PriorityBlockingQueue<QueuePacket>();
+    private SocketSendReceiveThread thread = new SocketSendReceiveThread();
 
     public ProtocolSocket(SocketAddress bindAddress) throws SocketException {
         super(bindAddress);
         this.setSendBufferSize(Packet.MAX_SIZE);
         this.setReceiveBufferSize(Packet.MAX_SIZE);
         this.setSoTimeout(ProtocolSocket.DEFAULT_TIMEOUT);
+        this.thread.start();
     }
 
     /**
@@ -31,7 +34,7 @@ public class ProtocolSocket extends DatagramSocket {
      * @param packet Packet to send
      */
     public void writePacket(QueuePacket packet){
-        this.sendBuffer.offer(packet);
+        this.thread.send(packet);
     }
 
     /**
@@ -65,40 +68,11 @@ public class ProtocolSocket extends DatagramSocket {
      * @return Packet received
      */
     public ReceivedPacket readPacket(){
-        try{
-            DatagramPacket dPacket = new DatagramPacket(new byte[Packet.MAX_SIZE], Packet.MAX_SIZE);
-            this.receive(dPacket);
-            byte[] buf = dPacket.getData();
-            if(buf[0] > 0){
-                return new ReceivedPacket(dPacket);
-            }
-        }catch (Exception ignore){}
-        return null;
+        return this.thread.receive();
     }
 
-    /**
-     * Flush queue and send all the packets
-     *
-     * @throws IOException
-     */
-    public void flush() throws IOException {
-        this.flush(-1);
-    }
-
-    /**
-     * Flush queue and send packets
-     *
-     * @param packets Max number of packets to send
-     * @throws IOException
-     */
-    public void flush(int packets) throws IOException {
-        if(packets < 0){
-            packets = Integer.MAX_VALUE;
-        }
-        QueuePacket packet;
-        while(((--packets) >= 0) && ((packet = this.sendBuffer.poll()) != null)){
-            this.writePacket(packet.getPacket());
-        }
+    public void flush(){
+        this.thread.flush();
     }
 
     /**
@@ -108,10 +82,69 @@ public class ProtocolSocket extends DatagramSocket {
      * @throws IOException
      */
     private void writePacket(DatagramPacket packet) throws IOException {
+        System.out.println("Send Packet #" + packet.getData()[0] + " length " + packet.getData().length);//TODO
         this.send(packet);
     }
 
     public boolean isAlive(){
         return !this.isClosed() && this.isBound();
+    }
+
+    public void close(){
+        this.thread.shutdown();
+        super.close();
+    }
+
+    private class SocketSendReceiveThread extends Thread{
+        private ConcurrentLinkedQueue<ReceivedPacket> receiveBuffer = new ConcurrentLinkedQueue<>();
+
+        private PriorityBlockingQueue<QueuePacket> sendBuffer = new PriorityBlockingQueue<>();
+
+        private boolean running = true;
+
+        public SocketSendReceiveThread(){
+            this.setName("RakLib Protocol Socket - " + ProtocolSocket.this.getLocalSocketAddress() + ":" + ProtocolSocket.this.getLocalPort());
+        }
+
+        public void flush(){
+            try{
+                while (!this.sendBuffer.isEmpty()){
+                    QueuePacket packet = this.sendBuffer.poll();
+                    ProtocolSocket.this.writePacket(packet.getPacket());
+                }
+            }catch (Exception ignore){}
+        }
+
+        public void run(){
+            while(this.running){
+                try{
+                    DatagramPacket dPacket = new DatagramPacket(new byte[Packet.MAX_SIZE], Packet.MAX_SIZE);
+                    ProtocolSocket.this.receive(dPacket);
+                    byte[] buf = dPacket.getData();
+                    if(buf[0] > 0){
+                        this.receiveBuffer.add(new ReceivedPacket(dPacket));
+                    }
+                }catch (Exception ignore){}
+            }
+        }
+
+        public ReceivedPacket receive(){
+            return receiveBuffer.poll();
+        }
+
+        public void send(QueuePacket packet){
+            System.out.println("Queued Send Packet #" + packet.getPacket().getData()[0] + " length " + packet.getPacket().getData().length);//TODO
+            byte[] data = packet.getPacket().getData();
+            System.out.println("Data: " + new BigInteger(data).toString(16));
+            this.sendBuffer.offer(packet);
+        }
+
+        public void shutdown(){
+            this.running = false;
+            try {
+                this.notifyAll();
+                this.join();
+            } catch (InterruptedException ignore) {}
+        }
     }
 }

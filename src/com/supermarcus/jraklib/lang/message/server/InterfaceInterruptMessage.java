@@ -14,4 +14,8 @@ public class InterfaceInterruptMessage extends ServerMessage {
     public Throwable getException(){
         return this.exception;
     }
+
+    public String toString(){
+        return super.toString() + " " + this.getException();
+    }
 }

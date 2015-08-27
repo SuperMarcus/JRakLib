@@ -6,9 +6,11 @@ import com.supermarcus.jraklib.protocol.raklib.PacketInfo;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 
 public abstract class AcknowledgePacket extends Packet {
-    private ArrayList<Integer> packets = new ArrayList<Integer>();
+    private ArrayList<Integer> packets = new ArrayList<>();
 
     public AcknowledgePacket(PacketInfo identifier) {
         super(identifier);
@@ -83,12 +85,17 @@ public abstract class AcknowledgePacket extends Packet {
         }
     }
 
+    public void addPackets(Collection<Integer> packets){
+        this.packets.addAll(packets);
+    }
+
     public void addPacket(int packetIdentifier){
         this.packets.add(packetIdentifier);
     }
 
     public Integer[] getPackets(){
-        return (Integer[]) this.packets.toArray();
+        Collections.sort(this.packets);
+        return this.packets.toArray(new Integer[this.packets.size()]);
     }
 
     public int getPacketCount(){

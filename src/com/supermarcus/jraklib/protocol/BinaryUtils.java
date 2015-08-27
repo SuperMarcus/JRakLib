@@ -24,7 +24,7 @@ public class BinaryUtils {
     public void putLTriad(int value){
         this.getBuffer().put((byte)(value & 0xFF));
         this.getBuffer().put((byte)((value >> 8) & 0xFF));
-        this.getBuffer().put((byte)((value >> 16) & 0xFF));
+        this.getBuffer().put((byte) ((value >> 16) & 0xFF));
     }
 
     public void putString(String value){
@@ -38,12 +38,16 @@ public class BinaryUtils {
     }
 
     public void putBool(boolean value){
-        this.getBuffer().put((byte)(value ? 1 : 0));
+        this.getBuffer().put((byte) (value ? 1 : 0));
     }
 
     public void putAddress(InetSocketAddress address){
         this.getBuffer().put((byte)(address.getAddress() instanceof Inet6Address ? 6 : 4));
-        this.getBuffer().put(address.getAddress().getAddress());
+        byte[] addressBytes = address.getAddress().getAddress();
+        for(int i = 0; i < addressBytes.length; ++i){
+            addressBytes[i] = (byte) ~addressBytes[i];
+        }
+        this.getBuffer().put(addressBytes);
         this.getBuffer().putShort((short) address.getPort());
     }
 
@@ -54,7 +58,7 @@ public class BinaryUtils {
     }
 
     public void getMagic(){
-        this.getBytes(BinaryUtils.MAGIC.length);
+        this.getBytes(16);
     }
 
     public String getString(){
@@ -74,7 +78,7 @@ public class BinaryUtils {
     }
 
     public boolean checkMagic(){
-        return Arrays.equals(this.getBytes(BinaryUtils.MAGIC.length), BinaryUtils.MAGIC);
+        return Arrays.equals(this.getBytes(16), BinaryUtils.MAGIC);
     }
 
     public int getLTriad(){
@@ -83,7 +87,11 @@ public class BinaryUtils {
 
     public InetSocketAddress getAddress(){
         try {
-            return new InetSocketAddress(InetAddress.getByAddress(this.getBytes((this.getBuffer().get() == 4) ? 4 : 16)), this.getBuffer().getShort());
+            byte[] addressBytes = this.getBytes((this.getBuffer().get() == 16) ? 16 : 4);
+            for(int i = 0; i < addressBytes.length; ++i){
+                addressBytes[i] = (byte) ~addressBytes[i];
+            }
+            return new InetSocketAddress(InetAddress.getByAddress(addressBytes), this.getBuffer().getShort());
         } catch (UnknownHostException ignore) {}
         return null;
     }

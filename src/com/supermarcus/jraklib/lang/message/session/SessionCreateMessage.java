@@ -7,4 +7,8 @@ public class SessionCreateMessage extends SessionMessage {
     public SessionCreateMessage(Session session) {
         super(MessageLevel.INFO, session);
     }
+
+    public String toString(){
+        return super.toString() + " Address: " + this.getSession().getAddress();
+    }
 }

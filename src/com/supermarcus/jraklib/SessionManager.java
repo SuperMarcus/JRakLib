@@ -1,5 +1,6 @@
 package com.supermarcus.jraklib;
 
+import com.supermarcus.jraklib.lang.ACKNotification;
 import com.supermarcus.jraklib.lang.exceptions.InterfaceOutOfPoolSizeException;
 import com.supermarcus.jraklib.lang.message.RakLibMessage;
 import com.supermarcus.jraklib.lang.message.major.MainThreadExceptionMessage;
@@ -13,7 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 
@@ -24,21 +25,25 @@ public class SessionManager extends Thread {
 
     private boolean isShutdown = false;
 
-    private LinkedBlockingQueue<RakLibMessage> messages = new LinkedBlockingQueue<RakLibMessage>();
+    private ConcurrentLinkedQueue<RakLibMessage> messages = new ConcurrentLinkedQueue<>();
 
-    private LinkedBlockingQueue<RawPacket> rawPackets = new LinkedBlockingQueue<RawPacket>();
+    private ConcurrentLinkedQueue<RawPacket> rawPackets = new ConcurrentLinkedQueue<>();
+
+    private ConcurrentLinkedQueue<ACKNotification> ackNotifications = new ConcurrentLinkedQueue<>();
 
     private int runningServer = 0;
 
     private RakLibInterface[] interfaces = new RakLibInterface[SessionManager.MAX_SERVER_INTERFACES];
 
-    private LinkedList<MessageHandler> messageHandlers = new LinkedList<MessageHandler>();
+    private LinkedList<MessageHandler> messageHandlers = new LinkedList<>();
 
-    private PacketHandler rawHandler = null;
+    private PacketHandler handler = null;
 
     private SessionMap map = new SessionMap();
 
-    private long serverId = (long)(Long.MAX_VALUE * Math.random());
+    private long serverId = 1L;
+
+    private boolean portChecking = false;
 
     volatile private String serverName = "MCPE;Minecraft Server;27;0.11.0;0;60";
 
@@ -75,6 +80,10 @@ public class SessionManager extends Thread {
         }
     }
 
+    public void notifyACK(Session session, Integer identifier){
+        this.ackNotifications.add(new ACKNotification(session, identifier));
+    }
+
     public SessionMap getSessionMap(){
         return this.map;
     }
@@ -105,11 +114,23 @@ public class SessionManager extends Thread {
         RawPacket raw = rawPackets.poll();
         while(raw != null){
             try{
-                if(this.rawHandler != null){
-                    this.rawHandler.onRawPacket(raw);
+                if(this.handler != null){
+                    this.handler.onRawPacket(raw);
                 }
             }catch (Exception ignore){}
             raw = rawPackets.poll();
+        }
+    }
+
+    private void processACKNotification(){
+        ACKNotification n = ackNotifications.poll();
+        while(n != null){
+            try{
+                if(this.handler != null){
+                    this.handler.onACKNotification(n);
+                }
+            }catch (Exception ignore){}
+            n = ackNotifications.poll();
         }
     }
 
@@ -182,7 +203,7 @@ public class SessionManager extends Thread {
     }
 
     public void setRawPacketHandler(PacketHandler handler){
-        this.rawHandler = handler;
+        this.handler = handler;
     }
 
     public void shutdown(){
@@ -203,6 +224,14 @@ public class SessionManager extends Thread {
             }
         }
         return -1;
+    }
+
+    public boolean isPortChecking() {
+        return portChecking;
+    }
+
+    public void setPortChecking(boolean portChecking) {
+        this.portChecking = portChecking;
     }
 
     public class SessionMap extends ConcurrentHashMap<InetSocketAddress, Session> {
@@ -229,7 +258,7 @@ public class SessionManager extends Thread {
 
         public Session[] findSessions(final RakLibInterface rakLibInterface){
             synchronized (this){
-                final ArrayList<Session> sessions = new ArrayList<Session>();
+                final ArrayList<Session> sessions = new ArrayList<>();
                 this.forEach(new BiConsumer<InetSocketAddress, Session>() {
                     @Override
                     public void accept(InetSocketAddress address, Session session) {
@@ -238,7 +267,7 @@ public class SessionManager extends Thread {
                         }
                     }
                 });
-                return (Session[]) sessions.toArray();
+                return sessions.toArray(new Session[sessions.size()]);
             }
         }
 

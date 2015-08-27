@@ -8,7 +8,6 @@ import com.supermarcus.jraklib.protocol.raklib.PacketInfo;
 import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PING;
 import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PONG;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 
@@ -59,6 +58,7 @@ public class RakLibInterface extends Thread{
                     Thread.sleep(tickStart + RakLibInterface.NORMAL_TICK - System.currentTimeMillis());
                 }catch (Exception ignore){}
             }
+            this.getSocket().close();
         }catch (Throwable t){
             this.getSessionManager().queueMessage(new InterfaceInterruptMessage(t, this));
         }
@@ -70,9 +70,11 @@ public class RakLibInterface extends Thread{
         ReceivedPacket packet = this.getSocket().readPacket();
         if(packet != null){
             byte[] buffer = packet.getRawData();
+            System.out.println("Handled Packet #" + buffer[0] + " length " + buffer.length);//TODO
             PacketInfo identifier = PacketInfo.getById(buffer[0]);
             if(identifier != null){
                 try{
+                    System.out.println("RakLib Packet " + identifier.name());//TODO
                     Packet wrappedPacket = identifier.wrap(buffer);
                     wrappedPacket.decode();
                     if(identifier == PacketInfo.UNCONNECTED_PING){//No need to pass to a session
@@ -85,9 +87,12 @@ public class RakLibInterface extends Thread{
                     }else{
                         this.getSessionManager().getSessionMap().getSession(packet.getSendAddress(), this).handlePacket(wrappedPacket);
                     }
-                }catch (Exception ignore){}
+                }catch (Exception e){
+                    e.printStackTrace();//TODO
+                }
             }else{
                 this.getSessionManager().queueRaw(new RawPacket(packet.getRawData(), packet.getSendAddress()));
+                System.out.println("RawPacket #" + buffer[0]);//TODO
             }
             return true;
         }
@@ -97,13 +102,18 @@ public class RakLibInterface extends Thread{
     /**
      * Main tick here
      */
-    public void onTick(){
+    public void onTick() {
         int max = RakLibInterface.MAX_PACKET_PER_TICK;
-        while((max > 0) && this.receivePacket())--max;
-
-        try {
+        while((max > 0) && this.receivePacket()){
             this.getSocket().flush();
-        } catch (IOException ignore) {}
+            --max;
+        }
+        this.getSessionManager().getSessionMap().update(this, System.currentTimeMillis());
+        try {
+            Thread.sleep(50);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     public boolean isRunning(){

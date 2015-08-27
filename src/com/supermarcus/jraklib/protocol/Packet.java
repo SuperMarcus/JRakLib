@@ -37,13 +37,14 @@ abstract public class Packet implements BinaryConvertible {
 
     public void initBuffer(ByteBuffer buffer){
         this.buffer = buffer;
-        if(!(this.getPacketIdentifier() == PacketInfo.getById(this.getBuffer().get()))){
+        this.utils = new BinaryUtils(buffer);
+        if(PacketInfo.getById(buffer.get()) != this.getPacketIdentifier()){
             throw new IllegalArgumentException();
         }
     }
 
     public byte[] toBinary(){
-        int length = getBuffer().position() + 1;
+        int length = getBuffer().position();
         byte[] raw = new byte[length];
         System.arraycopy(getBuffer().array(), 0, raw, 0, length);
         return raw;

@@ -22,7 +22,7 @@ public class OPEN_CONNECTION_REPLY_2 extends Packet {
         this.getUtils().putMagic();
         this.getBuffer().putLong(this.getServerID());
         this.getUtils().putAddress(this.getClientAddress());
-        this.getBuffer().putShort((byte) this.getMtuSize());
+        this.getBuffer().putShort((short) this.getMtuSize());
         this.getUtils().putBool(this.isSecurity());
     }
 

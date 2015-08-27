@@ -8,7 +8,7 @@ import com.supermarcus.jraklib.protocol.raklib.PacketInfo;
 import java.util.ArrayList;
 
 abstract public class DataPacket extends Packet {
-    private ArrayList<BinaryConvertible> packets = new ArrayList<BinaryConvertible>();
+    private ArrayList<BinaryConvertible> packets = new ArrayList<>();
 
     private int seqNumber = 0;
 
@@ -59,8 +59,12 @@ abstract public class DataPacket extends Packet {
         this.packets.clear();
     }
 
+    public int countPackets(){
+        return this.packets.size();
+    }
+
     public BinaryConvertible[] getPackets(){
-        return (BinaryConvertible[]) this.packets.toArray();
+        return this.packets.toArray(new BinaryConvertible[this.packets.size()]);
     }
 
     public int getSeqNumber() {
