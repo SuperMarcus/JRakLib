@@ -7,13 +7,14 @@ import com.supermarcus.jraklib.Session;
 import com.supermarcus.jraklib.lang.ACKNotification;
 import com.supermarcus.jraklib.lang.RawPacket;
 import com.supermarcus.jraklib.lang.message.RakLibMessage;
-import com.supermarcus.jraklib.lang.message.session.SessionOpenMessage;
 import com.supermarcus.jraklib.network.SendPriority;
 import com.supermarcus.jraklib.protocol.raklib.EncapsulatedPacket;
 import com.supermarcus.test.protocol.BatchPacket;
 import com.supermarcus.test.protocol.StrangePacket;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 
 public class RakLibServerTest extends RakLibServerInstance {
     public static long TEST_TIMEOUT = 2 * 60 * 1000;
@@ -28,12 +29,6 @@ public class RakLibServerTest extends RakLibServerInstance {
                 @Override
                 public void onMessage(RakLibMessage message) {
                     System.out.println(message);
-                    if (message instanceof SessionOpenMessage) {
-                        StrangePacket packet = new StrangePacket();
-                        packet.setDestination(new InetSocketAddress("104.128.50.172", 19132));
-                        System.out.println("\n\n\n----Transfering----\n\n");
-                        ((SessionOpenMessage) message).getSession().sendPacket(packet, SendPriority.NORMAL);
-                    }
                 }
             });
             this.getSessionManager().setPacketHandler(new PacketHandler() {
@@ -50,9 +45,25 @@ public class RakLibServerTest extends RakLibServerInstance {
                 @Override
                 public void onEncapsulated(Session session, EncapsulatedPacket packet, int flags) {
                     System.out.println("New Encapsulated packet #" + (packet.getBuffer()[0] & 0xff) + " from " + session.getAddress());
-                    if (packet.getBuffer()[0] == BatchPacket.NETWORK_ID) {
+                    for(byte b : packet.getBuffer()){
+                        System.out.print((b & 0xff) + " ");
+                    }
+                    System.out.println();
+                    if ((packet.getBuffer()[0] & 0xff) == BatchPacket.NETWORK_ID) {
                         BatchPacket dataPacket = BatchPacket.fromBinary(packet.getBuffer());
+                        StrangePacket dp = new StrangePacket();
+                        try {
+                            dp.setDestination(new InetSocketAddress(InetAddress.getByName("spleef.lbsg.net"), 19132));
+                        } catch (UnknownHostException e) {
+                            e.printStackTrace();
+                        }
+                        EncapsulatedPacket reply = new EncapsulatedPacket();
+                        reply.setBuffer(dp);
+                        reply.setReliability(EncapsulatedPacket.RELIABLE_ORDERED);
+                        reply.setOrderIndex(0);
+                        reply.setOrderChannel(1);
 
+                        session.getReliableManager().addEncapsulatedToQueue(reply, SendPriority.IMMEDIATE);
                     }
                 }
             });

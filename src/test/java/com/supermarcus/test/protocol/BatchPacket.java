@@ -6,7 +6,7 @@ import com.supermarcus.jraklib.protocol.BinaryUtils;
 import java.nio.ByteBuffer;
 
 public class BatchPacket implements BinaryConvertible {
-    public static byte NETWORK_ID = (byte) 0xb1;
+    public static int NETWORK_ID = 0xb1;
 
     private byte[] payload;
 
@@ -16,6 +16,7 @@ public class BatchPacket implements BinaryConvertible {
         ByteBuffer buf = ByteBuffer.wrap(buffer);
         BinaryUtils utils = new BinaryUtils(buf);
 
+        buf.get();
         packet.payload = utils.getBytes(buf.getInt());
 
         return packet;
@@ -27,6 +28,6 @@ public class BatchPacket implements BinaryConvertible {
 
     @Override
     public byte[] toBinary() {
-        return ByteBuffer.allocate(5 + this.payload.length).put(NETWORK_ID).putInt(this.payload.length).put(this.payload).array();
+        return ByteBuffer.allocate(5 + this.payload.length).put((byte) NETWORK_ID).putInt(this.payload.length).put(this.payload).array();
     }
 }

@@ -73,7 +73,6 @@ public class RakLibInterface extends Thread{
             PacketInfo identifier = PacketInfo.getById(buffer[0]);
             if(identifier != null){
                 try{
-                    System.out.println("RakLib Packet " + identifier.name());//TODO
                     Packet wrappedPacket = identifier.wrap(buffer);
                     wrappedPacket.decode();
                     if(identifier == PacketInfo.UNCONNECTED_PING){//No need to pass to a session

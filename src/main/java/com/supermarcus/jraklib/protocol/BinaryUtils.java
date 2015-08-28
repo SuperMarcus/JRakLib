@@ -97,7 +97,7 @@ public class BinaryUtils {
     }
 
     public byte[] getBytes(int length){
-        byte[] buffer = new byte[length];
+        byte[] buffer = new byte[Math.min(length, this.getBuffer().remaining())];
         this.getBuffer().get(buffer);
         return buffer;
     }

@@ -68,7 +68,6 @@ public class Session {
         int id = packet.getBuffer()[0] & 0xff;
         if(id < 0x80){
             PacketInfo info = PacketInfo.getById(packet.getBuffer()[0]);
-            System.out.println("Internal DataPacket #" + id + " identifier: " + info);
             if(info != null){
                 if(this.state == State.CONNECTING_2){
                     EncapsulatedPacket reply;

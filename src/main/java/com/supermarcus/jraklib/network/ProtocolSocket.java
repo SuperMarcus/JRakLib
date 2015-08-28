@@ -80,7 +80,6 @@ public class ProtocolSocket extends DatagramSocket {
      * @throws IOException
      */
     private void writePacket(DatagramPacket packet) throws IOException {
-        System.out.println("Send Packet #" + (packet.getData()[0] & 0xff) + " length " + packet.getData().length);//TODO
         this.send(packet);
     }
 
@@ -130,9 +129,6 @@ public class ProtocolSocket extends DatagramSocket {
         }
 
         public void send(QueuePacket packet){
-            System.out.println("Queued Send Packet #" + (packet.getPacket().getData()[0] & 0xff) + " length " + packet.getPacket().getData().length);//TODO
-            byte[] data = packet.getPacket().getData();
-            System.out.println("Data: " + new BigInteger(data).toString(16));
             this.sendBuffer.offer(packet);
         }
 

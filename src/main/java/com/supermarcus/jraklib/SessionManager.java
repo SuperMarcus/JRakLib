@@ -148,7 +148,9 @@ public class SessionManager extends Thread {
                 if(this.handler != null){
                     this.handler.onEncapsulated(e.getSession(), e.getPacket(), e.getFlags());
                 }
-            }catch (Exception ignore){}
+            }catch (Exception ex){
+                ex.printStackTrace();
+            }
             e = encapsulatedQueue.poll();
         }
     }

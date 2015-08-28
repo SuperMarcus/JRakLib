@@ -4,6 +4,7 @@ import com.supermarcus.jraklib.Session;
 import com.supermarcus.jraklib.SessionManager;
 import com.supermarcus.jraklib.lang.BinaryConvertible;
 import com.supermarcus.jraklib.lang.RecoveryDataPacket;
+import com.supermarcus.jraklib.protocol.BinaryUtils;
 import com.supermarcus.jraklib.protocol.Packet;
 import com.supermarcus.jraklib.protocol.raklib.EncapsulatedPacket;
 import com.supermarcus.jraklib.protocol.raklib.acknowledge.ACK;
@@ -55,6 +56,14 @@ public class ReliableManager {
 
     private int lastSeqNumber = -1;
 
+    private int messageIndex = 0;
+
+    private int splitIndex = 0;
+
+    private int splitID = 0;
+
+    private int[] channelIndex = new int[32];
+
     private TreeMap<Integer, EncapsulatedPacket> reliableWindow = new TreeMap<>();
 
     private SessionManager manager;
@@ -62,6 +71,61 @@ public class ReliableManager {
     public ReliableManager(Session ownedSession, SessionManager manager){
         this.ownedSession = new WeakReference<>(ownedSession);
         this.manager = manager;
+
+        for(int i = 0; i < 32; ++i){
+            this.channelIndex[i] = 0;
+        }
+    }
+
+    public void addEncapsulatedToQueue(EncapsulatedPacket packet, SendPriority flags){
+        if(packet.needACK()){
+            this.needACK.put(packet.getIdentifierACK(), new TreeSet<>());
+        }
+
+        if(packet.getReliability() == EncapsulatedPacket.RELIABLE ||
+                packet.getReliability() == EncapsulatedPacket.RELIABLE_ORDERED ||
+                packet.getReliability() == EncapsulatedPacket.RELIABLE_SEQUENCED ||
+                packet.getReliability() == EncapsulatedPacket.RELIABLE_WITH_ACK_RECEIPT ||
+                packet.getReliability() == EncapsulatedPacket.RELIABLE_ORDERED_WITH_ACK_RECEIPT){
+            packet.setMessageIndex(this.messageIndex++);
+
+            if(packet.getReliability() == EncapsulatedPacket.RELIABLE_ORDERED){
+                packet.setOrderIndex(this.channelIndex[packet.getOrderChannel()]++);
+            }
+        }
+
+        if((packet.getTotalLength() + 4) > this.getSession().getMtuSize()){
+            int splitID = ++this.splitID % 65536;
+            ByteBuffer buffer = ByteBuffer.wrap(packet.getBuffer());
+            BinaryUtils utils = new BinaryUtils(buffer);
+            ArrayList<byte[]> splits = new ArrayList<>();
+            while(buffer.hasRemaining()){
+                splits.add(utils.getBytes(this.getSession().getMtuSize() - 34));
+            }
+            for(int i = 0; i < splits.size(); ++i){
+                EncapsulatedPacket splitEncapsulatedPacket = new EncapsulatedPacket();
+                splitEncapsulatedPacket.setSplit(true);
+                splitEncapsulatedPacket.setSplitID((short) splitID);
+                splitEncapsulatedPacket.setReliability(packet.getReliability());
+                splitEncapsulatedPacket.setSplitIndex(i);
+                splitEncapsulatedPacket.setBuffer(splits.get(i));
+
+                if(i > 0){
+                    splitEncapsulatedPacket.setMessageIndex(this.messageIndex++);
+                }else{
+                    splitEncapsulatedPacket.setMessageIndex(packet.getMessageIndex());
+                }
+
+                if(splitEncapsulatedPacket.getReliability() == EncapsulatedPacket.RELIABLE_ORDERED){
+                    splitEncapsulatedPacket.setOrderChannel(packet.getOrderChannel());
+                    splitEncapsulatedPacket.setOrderIndex(packet.getOrderIndex());
+                }
+
+                this.addToQueue(splitEncapsulatedPacket, flags);
+            }
+        }else {
+            this.addToQueue(packet, flags);
+        }
     }
 
     public void addToQueue(EncapsulatedPacket packet, SendPriority priority){
