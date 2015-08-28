@@ -75,6 +75,8 @@ public class RakLibServerTest extends RakLibServerInstance {
                 System.out.println("Test is running for " + ((System.currentTimeMillis() - startMillis) / 1000) + "sec");
                 Thread.sleep(10 * 1000);
             }
+            System.out.println("Shutting down...");
+            this.getSessionManager().shutdown();
             System.out.println("Finish test");
         } catch (Exception e) {
             e.printStackTrace();
