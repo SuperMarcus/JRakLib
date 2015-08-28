@@ -1,5 +1,7 @@
 # JRakLib
 
+[![Build Status](https://travis-ci.org/SuperMarcus/JRakLib.svg?branch=master)](https://travis-ci.org/SuperMarcus/JRakLib)
+
 UDP network library that follows the RakNet protocol. Re-write into Java from PocketMine's [RakLib](https://github.com/PocketMine/RakLib). GPL Licensed.
 
 ```
