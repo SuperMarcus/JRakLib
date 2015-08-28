@@ -1,7 +1,6 @@
 package com.supermarcus.jraklib;
 
 import com.supermarcus.jraklib.lang.BinaryConvertible;
-import com.supermarcus.jraklib.lang.RecoveryDataPacket;
 import com.supermarcus.jraklib.lang.message.session.SessionCloseMessage;
 import com.supermarcus.jraklib.lang.message.session.SessionCreateMessage;
 import com.supermarcus.jraklib.lang.message.session.SessionOpenMessage;
@@ -58,14 +57,10 @@ public class Session {
         return this.ownedInterface.get();
     }
 
-    public void handleSplit(EncapsulatedPacket packet){
-
-    }
-
     public void handleEncapsulatedPacketRoute(EncapsulatedPacket packet){
         if(packet.hasSplit()){
             if(this.state == State.CONNECTED){
-                this.handleSplit(packet);
+                this.getReliableManager().onSplit(packet);
             }
             return;
         }
@@ -73,6 +68,7 @@ public class Session {
         int id = packet.getBuffer()[0] & 0xff;
         if(id < 0x80){
             PacketInfo info = PacketInfo.getById(packet.getBuffer()[0]);
+            System.out.println("Internal DataPacket #" + id + " identifier: " + info);
             if(info != null){
                 if(this.state == State.CONNECTING_2){
                     EncapsulatedPacket reply;
@@ -135,7 +131,6 @@ public class Session {
         this.lastUpdate = System.currentTimeMillis();
         if((this.state == State.CONNECTED) || (this.state == State.CONNECTING_2)){
             if(packet instanceof DataPacket){
-                System.out.println("DataPacket: " + packet.getClass().getSimpleName());//TODO
                 this.getReliableManager().onDataPacket((DataPacket) packet);
             }else if(packet instanceof AcknowledgePacket){
                 this.getReliableManager().onAcknowledgement((AcknowledgePacket) packet);
@@ -146,7 +141,6 @@ public class Session {
             if(this.state == State.UNCONNECTED && packet instanceof OPEN_CONNECTION_REQUEST_1){
                 OPEN_CONNECTION_REPLY_1 reply = new OPEN_CONNECTION_REPLY_1();
                 reply.setMtuSize(((OPEN_CONNECTION_REQUEST_1) packet).getMtuSize());
-                System.out.println("Mtu size: " + ((OPEN_CONNECTION_REQUEST_1) packet).getMtuSize());//TODO
                 reply.setServerID(this.manager.getServerId());
                 this.sendPacket(reply);
                 this.state = State.CONNECTING_1;
@@ -154,7 +148,6 @@ public class Session {
                 this.clientID = ((OPEN_CONNECTION_REQUEST_2) packet).getClientID();
                 if((((OPEN_CONNECTION_REQUEST_2) packet).getServerAddress().getPort() == this.getOwnedInterface().getSocket().getPort()) || !this.manager.isPortChecking()){
                     this.setMtuSize(Math.min(Math.abs(((OPEN_CONNECTION_REQUEST_2) packet).getMtuSize()), Session.MAX_MTU_SIZE));
-                    System.out.println("Address: " + ((OPEN_CONNECTION_REQUEST_2) packet).getServerAddress() + " Mtu size: " + this.getMtuSize());//TODO
                     OPEN_CONNECTION_REPLY_2 reply = new OPEN_CONNECTION_REPLY_2();
                     reply.setMtuSize(this.getMtuSize());
                     reply.setServerID(this.manager.getServerId());

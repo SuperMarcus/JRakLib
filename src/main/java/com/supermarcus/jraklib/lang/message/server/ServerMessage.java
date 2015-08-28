@@ -13,7 +13,7 @@ abstract public class ServerMessage extends RakLibMessage {
     public ServerMessage(MessageLevel level, RakLibInterface sourceInterface) {
         super(level);
         Objects.requireNonNull(sourceInterface);
-        this.source = new WeakReference<RakLibInterface>(sourceInterface);
+        this.source = new WeakReference<>(sourceInterface);
     }
 
     public RakLibInterface getSource(){

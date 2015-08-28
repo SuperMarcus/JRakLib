@@ -229,7 +229,7 @@ public class SessionManager extends Thread {
         return server;
     }
 
-    public void setRawPacketHandler(PacketHandler handler){
+    public void setPacketHandler(PacketHandler handler){
         this.handler = handler;
     }
 

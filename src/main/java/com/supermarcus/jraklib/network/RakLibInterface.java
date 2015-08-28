@@ -70,7 +70,6 @@ public class RakLibInterface extends Thread{
         ReceivedPacket packet = this.getSocket().readPacket();
         if(packet != null){
             byte[] buffer = packet.getRawData();
-            System.out.println("Handled Packet #" + (buffer[0] & 0xff) + " length " + buffer.length);//TODO
             PacketInfo identifier = PacketInfo.getById(buffer[0]);
             if(identifier != null){
                 try{
@@ -92,7 +91,6 @@ public class RakLibInterface extends Thread{
                 }
             }else{
                 this.getSessionManager().queueRaw(new RawPacket(packet.getRawData(), packet.getSendAddress()));
-                System.out.println("RawPacket #" + buffer[0]);//TODO
             }
             return true;
         }
@@ -108,6 +106,7 @@ public class RakLibInterface extends Thread{
             this.getSocket().flush();
             --max;
         }
+        this.getSocket().flush();
         this.getSessionManager().getSessionMap().update(this, System.currentTimeMillis());
         try {
             Thread.sleep(50);

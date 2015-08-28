@@ -4,6 +4,7 @@ import com.supermarcus.jraklib.Session;
 import com.supermarcus.jraklib.SessionManager;
 import com.supermarcus.jraklib.lang.BinaryConvertible;
 import com.supermarcus.jraklib.lang.RecoveryDataPacket;
+import com.supermarcus.jraklib.protocol.Packet;
 import com.supermarcus.jraklib.protocol.raklib.EncapsulatedPacket;
 import com.supermarcus.jraklib.protocol.raklib.acknowledge.ACK;
 import com.supermarcus.jraklib.protocol.raklib.acknowledge.AcknowledgePacket;
@@ -13,6 +14,7 @@ import com.supermarcus.jraklib.protocol.raklib.data.DATA_PACKET_4;
 import com.supermarcus.jraklib.protocol.raklib.data.DataPacket;
 
 import java.lang.ref.WeakReference;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.BiConsumer;
@@ -36,6 +38,8 @@ public class ReliableManager {
     private HashMap<Integer, TreeSet<Integer>> needACK = new HashMap<>();
 
     private ArrayList<Integer> receivedWindow = new ArrayList<>();
+
+    private HashMap<Short, TreeMap<Integer, EncapsulatedPacket>> splitPackets = new HashMap<>();
 
     private int windowStart = 0;
 
@@ -87,6 +91,34 @@ public class ReliableManager {
         this.sendQueue.addPacket(packet.needACK() ? new EncapsulatedPacket(packet) : packet);
     }
 
+    public void onSplit(EncapsulatedPacket packet){
+        if(packet.getSplitCount() > 128){
+            return;
+        }
+
+        TreeMap<Integer, EncapsulatedPacket> splitPackets;
+        if(this.splitPackets.containsKey(packet.getSplitID())){
+            splitPackets = this.splitPackets.get(packet.getSplitID());
+        }else {
+            splitPackets = new TreeMap<>();
+            this.splitPackets.put(packet.getSplitID(), splitPackets);
+        }
+        splitPackets.put(packet.getSplitIndex(), packet);
+
+        if(splitPackets.size() >= packet.getSplitCount()){
+            ByteBuffer buffer = ByteBuffer.allocate(Packet.MAX_SIZE);
+
+            for(EncapsulatedPacket pk : splitPackets.values()){
+                buffer.put(pk.getBuffer());
+            }
+
+            EncapsulatedPacket pk = new EncapsulatedPacket();
+            pk.setBuffer(Arrays.copyOf(buffer.array(), buffer.position()));
+
+            this.getSession().handleEncapsulatedPacketRoute(pk);
+        }
+    }
+
     public void onAcknowledgement(AcknowledgePacket packet){
         if(packet instanceof ACK){
             for(Integer seq : packet.getPackets()){
@@ -116,8 +148,6 @@ public class ReliableManager {
             return;
         }
 
-        System.out.println("VDataPacket: " + packet.getClass().getSimpleName());//TODO
-
         int diff = packet.getSeqNumber() - this.lastSeqNumber;
 
         this.NACKQueue.remove(packet.getSeqNumber());
@@ -144,7 +174,6 @@ public class ReliableManager {
     }
 
     public void onEncapsulatedPacket(EncapsulatedPacket packet){
-        System.out.println("Encap");//TODO
         if(packet.getMessageIndex() == null){
             this.getSession().handleEncapsulatedPacketRoute(packet);
         }else{
@@ -233,7 +262,7 @@ public class ReliableManager {
             this.recoveryQueue.forEach(new BiConsumer<Integer, RecoveryDataPacket>() {
                 @Override
                 public void accept(Integer seq, RecoveryDataPacket pk) {
-                    if (pk.getSendTime() < (millis - 8)) {
+                    if (pk.getSendTime() < (millis - 8000)) {
                         needToRecovery.add(pk);
                     }
                 }
