@@ -15,6 +15,8 @@ import java.net.SocketException;
  * Thread interface
  */
 public class RakLibInterface extends Thread{
+    public static final int NETWORK_CALCULATE_PERIOD = 32;
+
     public static final long NORMAL_TICK = 50;
 
     public static final int MAX_PACKET_PER_TICK = 500;
@@ -29,8 +31,13 @@ public class RakLibInterface extends Thread{
 
     private int serverId;
 
+    private long tickCounter = 0L;
+
+    private ChildNetworkManager networkManager;
+
     public RakLibInterface(InetSocketAddress serverAddress, SessionManager manager, int serverId) throws SocketException {
-        this.socket = new ProtocolSocket(serverAddress);
+        this.networkManager = new ChildNetworkManager(manager.getNetworkManager(), this);
+        this.socket = new ProtocolSocket(serverAddress, this.getNetworkManager());
         this.sessionManager = manager;
         this.serverId = serverId;
         this.start();
@@ -45,6 +52,8 @@ public class RakLibInterface extends Thread{
         try{
             while(this.running){
                 long tickStart = System.currentTimeMillis();
+
+                ++this.tickCounter;
 
                 if(tickStart < this.startTime){//what???
                     synchronized (this){
@@ -101,12 +110,19 @@ public class RakLibInterface extends Thread{
      */
     public void onTick() {
         int max = RakLibInterface.MAX_PACKET_PER_TICK;
+        long startMillis = System.currentTimeMillis();
+
         while((max > 0) && this.receivePacket()){
             this.getSocket().flush();
             --max;
         }
         this.getSocket().flush();
-        this.getSessionManager().getSessionMap().update(this, System.currentTimeMillis());
+        this.getSessionManager().getSessionMap().update(this, startMillis);
+
+        if((this.getTick() % RakLibInterface.NETWORK_CALCULATE_PERIOD) == 0){
+            this.getNetworkManager().doUpdate(System.currentTimeMillis());
+        }
+
         try {
             Thread.sleep(50);
         } catch (InterruptedException e) {
@@ -146,11 +162,19 @@ public class RakLibInterface extends Thread{
         return (object instanceof RakLibInterface) && (((RakLibInterface) object).getServerId() == this.getServerId());
     }
 
+    public long getTick(){
+        return this.tickCounter;
+    }
+
     public void finalize(){
         try {
             super.finalize();
             this.getSocket().close();
             this.interrupt();
         } catch (Throwable ignore) {}
+    }
+
+    public ChildNetworkManager getNetworkManager() {
+        return networkManager;
     }
 }

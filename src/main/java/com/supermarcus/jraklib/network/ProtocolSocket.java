@@ -16,11 +16,13 @@ import java.util.concurrent.PriorityBlockingQueue;
  * UDP Socket for Minecraft: Pocket Edition network protocol
  */
 public class ProtocolSocket extends DatagramSocket {
+    private ChildNetworkManager manager;
 
     private SocketSendReceiveThread thread = new SocketSendReceiveThread();
 
-    public ProtocolSocket(SocketAddress bindAddress) throws SocketException {
+    public ProtocolSocket(SocketAddress bindAddress, ChildNetworkManager networkManager) throws SocketException {
         super(bindAddress);
+        this.manager = networkManager;
         this.setSendBufferSize(Packet.MAX_SIZE);
         this.setReceiveBufferSize(Packet.MAX_SIZE);
         this.thread.start();
@@ -81,6 +83,7 @@ public class ProtocolSocket extends DatagramSocket {
      */
     private void writePacket(DatagramPacket packet) throws IOException {
         this.send(packet);
+        this.manager.onSocketSend(packet.getLength());
     }
 
     public boolean isAlive(){
@@ -118,6 +121,7 @@ public class ProtocolSocket extends DatagramSocket {
                     DatagramPacket dPacket = new DatagramPacket(new byte[Packet.MAX_SIZE], Packet.MAX_SIZE);
                     ProtocolSocket.this.receive(dPacket);
                     if(dPacket.getLength() > 0){
+                        manager.onSocketRead(dPacket.getLength());
                         this.receiveBuffer.add(new ReceivedPacket(dPacket));
                     }
                 }catch (Exception ignore){}

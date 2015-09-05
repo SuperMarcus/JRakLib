@@ -73,7 +73,8 @@ public class RakLibServerTest extends RakLibServerInstance {
             long startMillis = System.currentTimeMillis();
             while((System.currentTimeMillis() - startMillis) < TEST_TIMEOUT){
                 System.out.println("Test is running for " + ((System.currentTimeMillis() - startMillis) / 1000) + "sec");
-                Thread.sleep(10 * 1000);
+                System.out.println("Network speed: Upload " + (this.getNetworkManager().getSendSpeed() / 1024) + "kb/s Receive " + (this.getNetworkManager().getReceiveSpeed() / 1024) + "kb/s");
+                Thread.sleep(5 * 1000);
             }
             System.out.println("Shutting down...");
             this.getSessionManager().shutdown();
