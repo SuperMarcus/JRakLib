@@ -1,13 +1,16 @@
 package com.supermarcus.jraklib.network;
 
+import com.supermarcus.jraklib.Session;
 import com.supermarcus.jraklib.SessionManager;
 import com.supermarcus.jraklib.lang.message.server.*;
+import com.supermarcus.jraklib.lang.message.session.SessionCloseMessage;
 import com.supermarcus.jraklib.protocol.Packet;
 import com.supermarcus.jraklib.lang.RawPacket;
 import com.supermarcus.jraklib.protocol.raklib.PacketInfo;
 import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PING;
 import com.supermarcus.jraklib.protocol.raklib.UNCONNECTED_PONG;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 
@@ -27,6 +30,8 @@ public class RakLibInterface extends Thread{
 
     private boolean running = false;
 
+    private boolean isShutdown = true;
+
     private long startTime = 0L;
 
     private int serverId;
@@ -40,17 +45,19 @@ public class RakLibInterface extends Thread{
         this.socket = new ProtocolSocket(serverAddress, this.getNetworkManager());
         this.sessionManager = manager;
         this.serverId = serverId;
+        this.setName("RakLib - Interface Thread");
         this.start();
     }
 
     public void run(){
         this.running = true;
+        this.isShutdown = false;
         synchronized (this){
             this.startTime = System.currentTimeMillis();
         }
         this.getSessionManager().queueMessage(new InterfaceStartMessage(this.getStartTimeMillis(), this));
         try{
-            while(this.running){
+            while(!this.isShutdown){
                 long tickStart = System.currentTimeMillis();
 
                 ++this.tickCounter;
@@ -98,7 +105,7 @@ public class RakLibInterface extends Thread{
                     e.printStackTrace();//TODO
                 }
             }else{
-                this.getSessionManager().queueRaw(new RawPacket(packet.getRawData(), packet.getSendAddress()));
+                this.getSessionManager().queueRaw(new RawPacket(packet.getRawData(), packet.getSendAddress(), this));
             }
             return true;
         }
@@ -130,12 +137,21 @@ public class RakLibInterface extends Thread{
         }
     }
 
+    public void onAddressBlocked(InetAddress address, long millis){
+        this.getSessionManager().queueMessage(new NetworkBlockedMessage(address, millis, this));
+        for(Session s : this.getSessionManager().getSessionMap().findSessions(this)){
+            if(s.getAddress().getAddress().equals(address)){
+                s.close(SessionCloseMessage.Reason.NETWOEK_BLOCKED);
+            }
+        }
+    }
+
     public boolean isRunning(){
         return this.running;
     }
 
     public void shutdown(){
-        this.running = false;
+        this.isShutdown = true;
     }
 
     public int getServerId(){

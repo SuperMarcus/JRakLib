@@ -34,7 +34,7 @@ public class RakLibServerTest extends RakLibServerInstance {
             this.getSessionManager().setPacketHandler(new PacketHandler() {
                 @Override
                 public void onRawPacket(RawPacket packet) {
-                    System.out.println("New Raw Packet #" + (packet.getData()[0] & 0xff));
+                    System.out.println("New Raw Packet #" + (packet.getData()[0] & 0xff) + " from interface " + packet.getInterface().getSocket().getLocalSocketAddress());
                 }
 
                 @Override

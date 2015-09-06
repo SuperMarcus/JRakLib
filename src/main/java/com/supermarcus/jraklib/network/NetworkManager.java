@@ -2,9 +2,15 @@ package com.supermarcus.jraklib.network;
 
 import com.supermarcus.jraklib.protocol.Packet;
 
+import java.net.InetAddress;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class NetworkManager {
+    public static final long CLIENT_PACKET_LIMIT = 500;
+
     public static final int CALCULATE_MAX_QUEUE = 64;
 
     private long sendBytes = 0L;
@@ -24,6 +30,28 @@ public class NetworkManager {
     private ConcurrentLinkedQueue<Double> sendCalculateQueue = new ConcurrentLinkedQueue<>();
 
     private ConcurrentLinkedQueue<Double> receiveCalculateQueue = new ConcurrentLinkedQueue<>();
+
+    private ConcurrentHashMap<InetAddress, Long> blockAddresses = new ConcurrentHashMap<>();
+
+    public void blockAddress(InetAddress address, long millis){
+        this.blockAddressTill(address, (System.currentTimeMillis() + millis));
+    }
+
+    public void blockAddressTill(InetAddress address, long millis){
+        this.blockAddresses.put(address, millis);
+    }
+
+    public void unblockAddress(InetAddress address){
+        this.blockAddresses.remove(address);
+    }
+
+    public boolean isAddressBlocked(InetAddress address){
+        return this.blockAddresses.containsKey(address);
+    }
+
+    public Map<InetAddress, Long> getBlockedAddresses(){
+        return this.blockAddresses;
+    }
 
     public void doUpdate(long millis){
         synchronized (this){
@@ -45,19 +73,33 @@ public class NetworkManager {
                     }
                 }
 
+                double bytesSum = 0;
                 for(Double cSendBytes : this.sendCalculateQueue){
-                    this.sendSpeed = (this.sendSpeed + cSendBytes) / 2;
+                    bytesSum += cSendBytes;
                 }
+                this.sendSpeed = bytesSum / (double) this.sendCalculateQueue.size();
 
+                bytesSum = 0;
                 for(Double cReceiveBytes : this.receiveCalculateQueue){
-                    this.receiveSpeed = (this.receiveSpeed + cReceiveBytes) / 2;
+                    bytesSum += cReceiveBytes;
                 }
+                this.receiveSpeed = bytesSum / (double) this.receiveCalculateQueue.size();
 
                 this.lastReceivedBytes = 0;
                 this.lastSendBytes = 0;
 
                 if((this.sendBytes > (Long.MAX_VALUE - (Packet.MAX_SIZE * 16))) || (this.receivedBytes > (Long.MAX_VALUE - (Packet.MAX_SIZE * 16)))){
                     this.clearCounter0();
+                }
+
+                HashSet<InetAddress> needToUnblock = new HashSet<>();
+                for(Map.Entry<InetAddress, Long> entry : this.getBlockedAddresses().entrySet()){
+                    if(entry.getValue() != -1 && entry.getValue() <= millis){
+                        needToUnblock.add(entry.getKey());
+                    }
+                }
+                for(InetAddress unblockAddress : needToUnblock){
+                    this.unblockAddress(unblockAddress);
                 }
             }
 
