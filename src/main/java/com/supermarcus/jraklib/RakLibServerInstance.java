@@ -2,6 +2,7 @@ package com.supermarcus.jraklib;
 
 import com.supermarcus.jraklib.lang.exceptions.InterfaceOutOfPoolSizeException;
 import com.supermarcus.jraklib.network.NetworkManager;
+import com.supermarcus.jraklib.network.RakLibInterface;
 
 import java.net.InetSocketAddress;
 import java.net.SocketException;
@@ -24,9 +25,11 @@ abstract public class RakLibServerInstance {
      * @param address The address binding on
      * @throws SocketException
      * @throws InterfaceOutOfPoolSizeException
+     *
+     * @return New instance of RakLibInterface
      */
-    protected void addInterface(InetSocketAddress address) throws SocketException, InterfaceOutOfPoolSizeException {
-        this.getSessionManager().addInterface(address);
+    protected RakLibInterface addInterface(InetSocketAddress address) throws SocketException, InterfaceOutOfPoolSizeException {
+        return this.getSessionManager().addInterface(address);
     }
 
     /**
