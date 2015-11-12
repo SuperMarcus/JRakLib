@@ -1,0 +1,17 @@
+group 'com.supermarcus'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile(
+            "com.google.guava:guava:18.0",
+            "com.jcraft:jzlib:1.1.3"
+    )
+}

@@ -3,3 +3,9 @@
 JRakLib.iml
 
 .DS_Store
+
+.gradle
+.gradle/*
+
+build
+build/*
