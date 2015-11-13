@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class NetworkManager {
-    public static final long CLIENT_PACKET_LIMIT = 500;
+    public static final long CLIENT_PACKET_LIMIT = 1000;
 
     public static final int CALCULATE_MAX_QUEUE = 64;
 
