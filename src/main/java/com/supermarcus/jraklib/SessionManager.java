@@ -54,6 +54,8 @@ public class SessionManager extends Thread {
 
     private NetworkManager networkManager = new NetworkManager();
 
+    volatile private boolean customThreads;
+
     volatile private String displayName = "Minecraft Server";
 
     volatile private int peProtocol = 27;
@@ -65,14 +67,22 @@ public class SessionManager extends Thread {
     volatile private int maxPlayer = 60;
 
     public SessionManager(){
+        this(false);
+    }
+
+    public SessionManager(boolean customThreads){
         this.setName("RakLib - Main Thread");
-        this.setUncaughtExceptionHandler(new UncaughtExceptionHandler() {
-            @Override
-            public void uncaughtException(Thread t, Throwable e) {
-                queueMessage(new UncaughtMainThreadExceptionMessage(t, e));
-            }
-        });
+        this.setUncaughtExceptionHandler((t, e) -> queueMessage(new UncaughtMainThreadExceptionMessage(t, e)));
+        this.setCustomThreads(customThreads);
         this.start();
+    }
+
+    public void setCustomThreads(boolean value){
+        this.customThreads = value;
+    }
+
+    public boolean isCustomThreads(){
+        return this.customThreads;
     }
 
     public void run(){
@@ -83,7 +93,9 @@ public class SessionManager extends Thread {
                 if((ticks % 50) == 0){
                     this.getNetworkManager().doUpdate(System.currentTimeMillis());
                 }
-                this.update();
+                if(!this.isCustomThreads()){
+                    this.update();
+                }
             }catch (Throwable t){
                 this.queueMessage(new MainThreadExceptionMessage(this, t));
             }
@@ -371,12 +383,9 @@ public class SessionManager extends Thread {
         public Session[] findSessions(final RakLibInterface rakLibInterface){
             synchronized (this){
                 final ArrayList<Session> sessions = new ArrayList<>();
-                this.forEach(new BiConsumer<InetSocketAddress, Session>() {
-                    @Override
-                    public void accept(InetSocketAddress address, Session session) {
-                        if(session.getOwnedInterface().equals(rakLibInterface)){
-                            sessions.add(session);
-                        }
+                this.forEach((address, session) -> {
+                    if(session.getOwnedInterface().equals(rakLibInterface)){
+                        sessions.add(session);
                     }
                 });
                 return sessions.toArray(new Session[sessions.size()]);
