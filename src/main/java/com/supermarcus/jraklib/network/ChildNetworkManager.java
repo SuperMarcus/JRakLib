@@ -43,14 +43,14 @@ public class ChildNetworkManager extends NetworkManager {
 
             long duration = millis - this.lastTrafficMeasure;
             if(duration > 0){
-                this.trafficMonitor.entrySet().stream().filter(e -> e.getValue() >= NetworkManager.CLIENT_PACKET_LIMIT).forEach(e -> {
+                /*this.trafficMonitor.entrySet().stream().filter(e -> e.getValue() >= NetworkManager.CLIENT_PACKET_LIMIT).forEach(e -> {
                     long blockMillis = (long) (((double) e.getValue() / (double) NetworkManager.CLIENT_PACKET_LIMIT) * 3000D);
                     this.blockAddress(e.getKey().getAddress(), blockMillis);
                     this.getOwner().onAddressBlocked(e.getKey().getAddress(), blockMillis);
                     if (blockMillis >= (NetworkManager.CLIENT_PACKET_LIMIT * 4)) {
                         this.getParent().blockAddress(e.getKey().getAddress(), blockMillis);
                     }
-                });
+                });*/
                 this.trafficMonitor.clear();
             }
 
