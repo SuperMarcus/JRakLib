@@ -83,10 +83,7 @@ public class SessionManager extends Thread {
                 if((ticks % 50) == 0){
                     this.getNetworkManager().doUpdate(System.currentTimeMillis());
                 }
-                this.processMessages();
-                this.processRawPacket();
-                this.processACKNotification();
-                this.processEncapsulated();
+                this.update();
             }catch (Throwable t){
                 this.queueMessage(new MainThreadExceptionMessage(this, t));
             }
@@ -132,6 +129,21 @@ public class SessionManager extends Thread {
 
     public long getServerId(){
         return this.serverId;
+    }
+
+    public void forceUpdate(){
+        this.update();
+    }
+
+    private void update(){
+        try{
+            this.processMessages();
+            this.processRawPacket();
+            this.processACKNotification();
+            this.processEncapsulated();
+        }catch (Throwable t){
+            this.queueMessage(new MainThreadExceptionMessage(this, t));
+        }
     }
 
     private void processMessages(){
